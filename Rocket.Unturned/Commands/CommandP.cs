@@ -46,7 +46,7 @@ namespace Rocket.Unturned.Commands
 
         public void Execute(IRocketPlayer caller, string[] command)
         {
-            if (command.Length == 1 && command[0].ToLower() == "reload" && caller.HasPermission("p.reload"))
+            if (command.Length == 1 && command[0].ToLower() == "reload" && (caller is ConsolePlayer || caller.HasPermission("p.reload")))
             {
                 R.Permissions.Reload();
                 UnturnedChat.Say(caller, U.Translate("command_p_permissions_reload"));
