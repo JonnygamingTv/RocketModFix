@@ -129,12 +129,12 @@ namespace Rocket.Unturned.Chat
                 ChatManager.serverSendMessage(m, color, fromPlayer: null, toPlayer: null, mode: EChatMode.GLOBAL, iconURL: null, useRichTextFormatting: rich);
             }
         }
-        
+
         public static void Say(string message, Color color)
         {
             Say(message, color, false);
         }
-        
+
         public static void Say(IRocketPlayer player, string message, bool rich)
         {
             Say(player, message, Palette.SERVER, rich);
@@ -172,33 +172,37 @@ namespace Rocket.Unturned.Chat
             Say(CSteamID, message, color, false);
         }
 
-         public static List<string> wrapMessage(string text)
-         {
-             if (text.Length == 0) return new List<string>();
-             string[] words = text.Split(' ');
-             List<string> lines = new List<string>();
-             string currentLine = "";
-             int maxLength = 90;
-             foreach (var currentWord in words)
-             {
-  
-                 if ((currentLine.Length > maxLength) ||
-                     ((currentLine.Length + currentWord.Length) > maxLength))
-                 {
-                     lines.Add(currentLine);
-                     currentLine = "";
-                 }
-  
-                 if (currentLine.Length > 0)
-                     currentLine += " " + currentWord;
-                 else
-                     currentLine += currentWord;
-  
-             }
-  
-             if (currentLine.Length > 0)
-                 lines.Add(currentLine);
-                 return lines;
+        public static List<string> wrapMessage(string text)
+        {
+            if (text.Length == 0)
+                return new List<string>();
+
+            string[] words = text.Split(' ');
+            List<string> lines = new List<string>();
+            string currentLine = "";
+            int maxLength = ChatManager.MAX_MESSAGE_LENGTH;
+
+            foreach (var currentWord in words)
+            {
+
+                if ((currentLine.Length > maxLength) ||
+                    ((currentLine.Length + currentWord.Length) > maxLength))
+                {
+                    lines.Add(currentLine);
+                    currentLine = "";
+                }
+
+                if (currentLine.Length > 0)
+                    currentLine += " " + currentWord;
+                else
+                    currentLine += currentWord;
+
             }
+
+            if (currentLine.Length > 0)
+                lines.Add(currentLine);
+
+            return lines;
+        }
     }
 }

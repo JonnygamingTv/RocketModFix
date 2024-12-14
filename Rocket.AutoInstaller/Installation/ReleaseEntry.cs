@@ -1,22 +1,23 @@
-namespace Rocket.AutoInstaller.Installation;
-
-public class ReleaseEntry
+namespace Rocket.AutoInstaller.Installation
 {
-    public ReleaseEntry(string name, string fullName, string fileNameWithoutExtension, string fileExtension,
-        string directoryName, byte[] content)
+    public class ReleaseEntry
     {
-        Name = name;
-        FullName = fullName;
-        FileNameWithoutExtension = fileNameWithoutExtension;
-        FileExtension = fileExtension;
-        DirectoryName = directoryName;
-        Content = content;
-    }
+        public ReleaseEntry(string name, string fullName, string fileNameWithoutExtension, string fileExtension,
+            string directoryName, byte[] content)
+        {
+            Name = name;
+            FullName = fullName;
+            FileNameWithoutExtension = fileNameWithoutExtension;
+            FileExtension = fileExtension;
+            DirectoryName = directoryName;
+            Content = content;
+        }
 
-    public string Name { get; }
-    public string FullName { get; }
-    public string FileExtension { get; }
-    public string FileNameWithoutExtension { get; }
-    public string DirectoryName { get; set; }
-    public byte[] Content { get; }
+        public string Name { get; }
+        public string FullName { get; }
+        public string FileExtension { get; }
+        public string FileNameWithoutExtension { get; }
+        public string DirectoryName { get; set; }
+        public byte[] Content { get; }
+    }
 }

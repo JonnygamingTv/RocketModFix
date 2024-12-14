@@ -1,0 +1,5 @@
+{
+	"EnableCustomInstall": false,
+	"CustomInstallPath": "",
+	"BlockIfRocketInstalled": true
+}

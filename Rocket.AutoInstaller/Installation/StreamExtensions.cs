@@ -1,13 +1,14 @@
 using System.IO;
 
-namespace Rocket.AutoInstaller.Installation;
-
-public static class StreamExtensions
+namespace Rocket.AutoInstaller.Installation
 {
-    public static byte[] CopyToArray(this Stream source)
+    public static class StreamExtensions
     {
-        var memoryStream = new MemoryStream();
-        source.CopyTo(memoryStream);
-        return memoryStream.ToArray();
+        public static byte[] CopyToArray(this Stream source)
+        {
+            var memoryStream = new MemoryStream();
+            source.CopyTo(memoryStream);
+            return memoryStream.ToArray();
+        }
     }
 }

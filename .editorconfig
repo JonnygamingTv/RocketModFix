@@ -3,7 +3,7 @@ root = true
 [*]
 trim_trailing_whitespace = true
 csharp_using_directive_placement = outside_namespace:silent
-csharp_style_namespace_declarations = file_scoped:silent
+csharp_style_namespace_declarations = block_scoped:silent
 indent_style = tab
 
 # Match style of legacy RocketMod code

@@ -27,6 +27,12 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="config.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="RocketModModuleArtifacts" AfterTargets="PostBuildEvent">
 
     <ItemGroup>
@@ -34,6 +40,7 @@
       <RocketModModuleFiles Include="Module/Rocket.AutoInstaller/*"/>
       <RocketModInstallationGuides Include="Module/InstallationGuides/*.txt"/>
       <RocketModRuntimeLibs Include="Module/RuntimeLibs/*.dll"/>
+      <RocketModConfig Include="$(OutDir)config.json"/>
     </ItemGroup>
 
     <PropertyGroup>
@@ -46,6 +53,7 @@
     <Copy SourceFiles="@(RocketModFiles)" DestinationFolder="$(RocketOutputDirectory)"/>
     <Copy SourceFiles="@(RocketModModuleFiles)" DestinationFolder="$(RocketOutputDirectory)"/>
     <Copy SourceFiles="@(RocketModRuntimeLibs)" DestinationFolder="$(RocketOutputDirectory)"/>
+    <Copy SourceFiles="@(RocketModConfig)" DestinationFolder="$(RocketOutputDirectory)"/>
 
   </Target>
 
