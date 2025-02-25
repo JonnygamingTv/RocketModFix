@@ -62,7 +62,14 @@ namespace Rocket.Core.Permissions
         {
             helper.permissions.Load();
             helper.permissions.Instance.GroupsDict.Clear();
-            foreach (RocketPermissionsGroup _Group in helper.permissions.Instance.Groups) helper.permissions.Instance.GroupsDict[_Group.Id] = _Group;
+            foreach (RocketPermissionsGroup _Group in helper.permissions.Instance.Groups)
+            {
+                if (_Group._Members.Count == 0)
+                {
+                    _Group._Members = new HashSet<string>(_Group.Members);
+                }
+                helper.permissions.Instance.GroupsDict[_Group.Id] = _Group;
+            }
         }
         
         //public void ManualLoad() { Awake(); }
