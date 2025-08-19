@@ -17,6 +17,7 @@ namespace Rocket.Core.Commands
 {
     public class RocketCommandManager : MonoBehaviour
     {
+        private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
         private readonly List<RegisteredRocketCommand> commands = new List<RegisteredRocketCommand>();
         private readonly Dictionary<string, RegisteredRocketCommand> commandsDict = new Dictionary<string, RegisteredRocketCommand>(StringComparer.OrdinalIgnoreCase);
         internal Dictionary<string, RocketCommandCooldown> cooldown = new Dictionary<string, RocketCommandCooldown>(StringComparer.OrdinalIgnoreCase);
@@ -34,7 +35,7 @@ namespace Rocket.Core.Commands
             foreach (RegisteredRocketCommand ReregCmd in tmp) DeRegisterCommand(ReregCmd.Command);
             foreach (RegisteredRocketCommand ReregCmd in tmp) Register(ReregCmd.Command);
             // loop through assemblies(?) instead of re-registering commands based of previously registered.
-            RegisterFromAssembly(Assembly.GetExecutingAssembly());
+            foreach (Assembly asm in assemblies) RegisterFromAssembly(asm);
         }
         public RocketCommandManager() { }
 
@@ -386,6 +387,8 @@ namespace Rocket.Core.Commands
                     }
                 }
             }
+
+            assemblies.Add(assembly);
         }
 
         public class RegisteredRocketCommand : IRocketCommand
