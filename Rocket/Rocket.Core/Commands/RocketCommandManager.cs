@@ -33,6 +33,8 @@ namespace Rocket.Core.Commands
             ReadOnlyCollection<RegisteredRocketCommand> tmp = commands.ToList().AsReadOnly();
             foreach (RegisteredRocketCommand ReregCmd in tmp) DeRegisterCommand(ReregCmd.Command);
             foreach (RegisteredRocketCommand ReregCmd in tmp) Register(ReregCmd.Command);
+            // loop through assemblies(?) instead of re-registering commands based of previously registered.
+            RegisterFromAssembly(Assembly.GetExecutingAssembly());
         }
         public RocketCommandManager() { }
 
