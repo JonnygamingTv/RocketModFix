@@ -46,7 +46,7 @@ namespace Rocket.Core.Plugins
             {
                 AssemblyName requestedName = new AssemblyName(args.Name);
                 var matchesByName = libraries.Where(lib => string.Equals(lib.Key.Name, requestedName.Name));
-                
+
                 // Prefer exactly-matching version if possible.
                 var bestMatch = matchesByName.FirstOrDefault(lib => lib.Key.Version == requestedName.Version);
                 if (string.IsNullOrEmpty(bestMatch.Value))
@@ -103,11 +103,6 @@ namespace Rocket.Core.Plugins
             {
                 if(!libraries.ContainsKey(pair.Key))
                     libraries.Add(pair.Key,pair.Value);
-            }
-
-            foreach (KeyValuePair<AssemblyName, string> pair in libraries)
-            {
-                Logging.Logger.Log($"Rocket dependency registered: {pair.Key} at {pair.Value}");
             }
 
             pluginAssemblies = LoadAssembliesFromDirectory(Environment.PluginsDirectory);
