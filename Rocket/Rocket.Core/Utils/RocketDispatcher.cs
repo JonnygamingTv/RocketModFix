@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Rocket.Core.Utils
@@ -72,6 +73,28 @@ namespace Rocket.Core.Utils
                 Interlocked.Decrement(ref numThreads);
             }
         }
+
+        private static readonly SemaphoreSlim _limit = new SemaphoreSlim(8);
+        public static Task OffThread(Action a)
+        {
+            return Task.Run(async () =>
+            {
+                await _limit.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    a();
+                }
+                catch (Exception ex)
+                {
+                    Logging.Logger.LogException(ex, "Error while running action");
+                }
+                finally
+                {
+                    _limit.Release();
+                }
+            });
+        }
+
 
         private void Awake()
         {

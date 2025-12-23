@@ -96,7 +96,7 @@ namespace Rocket.Core.Permissions
         }
         public void SaveAsync()
         {
-            Rocket.Core.Utils.TaskDispatcher.RunAsync(() => permissions.Save());
+            Rocket.Core.Utils.TaskDispatcher.OffThread(() => permissions.Save());
         }
 
         internal RocketPermissionsGroup GetGroup(string groupId)
