@@ -94,6 +94,10 @@ namespace Rocket.Core.Permissions
 
             return applyingPermissions.Count != 0;
         }
+        public void SaveAsync()
+        {
+            Rocket.Core.Utils.TaskDispatcher.RunAsync(() => permissions.Save());
+        }
 
         internal RocketPermissionsGroup GetGroup(string groupId)
         {
@@ -116,7 +120,7 @@ namespace Rocket.Core.Permissions
 
             g.Members.Remove(playerId);
             g._Members.Remove(playerId);
-            SaveGroup(g);
+            SaveAsync(); // SaveGroup(g);
             return RocketPermissionsProviderResult.Success;
         }
 
@@ -134,7 +138,7 @@ namespace Rocket.Core.Permissions
 
             g.Members.Add(playerId);
             g._Members.Add(playerId);
-            SaveGroup(g);
+            SaveAsync(); // SaveGroup(g);
             return RocketPermissionsProviderResult.Success;
         }
 

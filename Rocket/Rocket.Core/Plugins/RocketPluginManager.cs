@@ -49,10 +49,16 @@ namespace Rocket.Core.Plugins
 
                 // Prefer exactly-matching version if possible.
                 var bestMatch = matchesByName.FirstOrDefault(lib => lib.Key.Version == requestedName.Version);
+
                 if (string.IsNullOrEmpty(bestMatch.Value))
                 {
                     // Otherwise, fallback to highest version.
                     bestMatch = matchesByName.OrderByDescending(lib => lib.Key.Version).FirstOrDefault();
+                }
+                if (string.IsNullOrEmpty(bestMatch.Value) || bestMatch.Key == null)
+                {
+                    // Match the old dependency resolver.
+                    bestMatch = matchesByName.FirstOrDefault(lib => lib.Key.Version != null && lib.Key.Version >= requestedName.Version);
                 }
                 if (!string.IsNullOrEmpty(bestMatch.Value))
                 {
