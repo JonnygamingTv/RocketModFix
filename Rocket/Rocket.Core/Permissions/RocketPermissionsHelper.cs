@@ -94,9 +94,19 @@ namespace Rocket.Core.Permissions
 
             return applyingPermissions.Count != 0;
         }
+        private static bool _saveInProgress;
+        private static System.Threading.Timer _timer;
         public void SaveAsync()
         {
-            Rocket.Core.Utils.TaskDispatcher.OffThread(() => permissions.Save());
+            if (_saveInProgress) return;
+            _saveInProgress = true;
+            _timer?.Dispose();
+            _timer = new System.Threading.Timer(_ => OnSaveTimer(), null, 500, System.Threading.Timeout.Infinite);
+        }
+        private void OnSaveTimer()
+        {
+            _saveInProgress = false;
+            Rocket.Core.Utils.TaskDispatcher.OffThread(() => { permissions.Save(); });
         }
 
         internal RocketPermissionsGroup GetGroup(string groupId)
