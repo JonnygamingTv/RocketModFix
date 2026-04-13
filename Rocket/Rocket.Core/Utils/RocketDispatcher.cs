@@ -10,7 +10,7 @@ namespace Rocket.Core.Utils
 {
     public class TaskDispatcher : MonoBehaviour
     {
-        private static bool awake;
+        private static volatile bool awake;
 
         // ─────────────────────────────────────────────
         // Immediate queue (lock-free)
