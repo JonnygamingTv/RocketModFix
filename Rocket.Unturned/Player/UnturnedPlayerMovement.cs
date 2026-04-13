@@ -1,8 +1,8 @@
+using Rocket.Core;
 using Rocket.Core.Logging;
 using Rocket.Unturned.Player;
 using SDG.Unturned;
 using UnityEngine;
-using System;
 using Logger = Rocket.Core.Logging.Logger;
 
 namespace Rocket.Unturned
@@ -11,69 +11,65 @@ namespace Rocket.Unturned
     {
         public bool VanishMode = false;
 
-        // HOT STATE (avoid DateTime overhead in FixedUpdate)
+        // Unity time float – no DateTime struct allocation, no conversions.
         private float _nextCheckTime;
-        private Vector3 _lastVector = new Vector3(0f, -1f, 0f);
 
-        // Cache component reference (avoid GetComponent every tick)
+        // Sentinel: y == -1f means "no previous sample yet".
+        private Vector3 _lastPos = new Vector3(0f, -1f, 0f);
+
+        // Cached once in Load() to avoid GetComponent<> every FixedUpdate tick.
         private PlayerMovement _movement;
 
         protected override void Load()
         {
-            _movement = Player.GetComponent<PlayerMovement>();
+            _movement = Player.Player.GetComponent<PlayerMovement>();
         }
 
         private void FixedUpdate()
         {
+            // Vanish-mode players are intentionally exempt from movement logging.
             if (VanishMode)
                 return;
 
-            // faster than DateTime.Now comparisons (no struct overhead / no conversions)
-            float time = Time.time;
-            if (time < _nextCheckTime)
+            // Setting may be toggled at runtime; check it first so we bail out
+            // before even touching Time.time when logging is disabled.
+            if (!U.Settings.Instance.LogSuspiciousPlayerMovement)
                 return;
 
-            _nextCheckTime = time + 1f;
+            float now = Time.time;
+            if (now < _nextCheckTime)
+                return;
 
-            var movement = _movement;
-            if (!movement) // recently added. Somehow fatal crash on QueueOnMainThread (Unity-level crash) // have not tested with this patch yet
+            _nextCheckTime = now + 1f;
+
+            // Guard against the component being destroyed or not yet ready.
+            if (_movement == null)
             {
-                movement = Player.GetComponent<PlayerMovement>();
-                _movement = movement;
-                if (!movement) return;
+                _movement = Player.Player.GetComponent<PlayerMovement>();
+                if (_movement == null) return;
             }
 
-            Vector3 pos = movement.real;
+            Vector3 pos = _movement.real;
 
-            // sentinel check (keep behavior identical)
-            if (_lastVector.y != -1f)
+            // Skip the very first sample (sentinel y == -1).
+            if (_lastPos.y != -1f)
             {
-                float dx = Mathf.Abs(_lastVector.x - pos.x);
-                float dy = pos.y - _lastVector.y;
-                float dz = Mathf.Abs(_lastVector.z - pos.z);
+                float dy = pos.y - _lastPos.y;
 
-                // early exit: avoid raycast unless needed
                 if (dy > 15f)
                 {
-                    // Raycast optimization: reuse static direction
-                    RaycastHit hit;
+                    // Only raycast when the suspicious threshold is exceeded.
+                    float floorDist = 0f;
+                    if (Physics.Raycast(pos, Vector3.down, out RaycastHit hit))
+                        floorDist = Mathf.Abs(hit.point.y - pos.y);
 
-                    if (Physics.Raycast(pos, Vector3.down, out hit))
-                    {
-                        float floorDist = Mathf.Abs(hit.point.y - pos.y);
-
-                        Logger.Log(
-                            Player.DisplayName +
-                            " moved x:" + pos.x +
-                            " y:" + pos.y + "(+" + dy + ")" +
-                            " z:" + pos.z +
-                            " dist:" + floorDist
-                        );
-                    }
+                    Logger.Log(string.Format(
+                        "{0} moved x:{1:F1} y:{2:F1} (+{3:F1}) z:{4:F1} in the last second (floor dist: {5:F1})",
+                        Player.DisplayName, pos.x, pos.y, dy, pos.z, floorDist));
                 }
             }
 
-            _lastVector = pos;
+            _lastPos = pos;
         }
     }
 }
