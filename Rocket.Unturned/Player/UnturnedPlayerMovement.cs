@@ -35,7 +35,15 @@ namespace Rocket.Unturned
 
             _nextCheckTime = time + 1f;
 
-            Vector3 pos = _movement.real;
+            var movement = _movement;
+            if (!movement) // recently added. Somehow fatal crash on QueueOnMainThread (Unity-level crash) // have not tested with this patch yet
+            {
+                movement = Player.GetComponent<PlayerMovement>();
+                _movement = movement;
+                if (!movement) return;
+            }
+
+            Vector3 pos = movement.real;
 
             // sentinel check (keep behavior identical)
             if (_lastVector.y != -1f)
