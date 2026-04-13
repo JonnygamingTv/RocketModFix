@@ -106,7 +106,7 @@ namespace Rocket.Core.Permissions
         private void OnSaveTimer()
         {
             _saveInProgress = false;
-            Rocket.Core.Utils.TaskDispatcher.OffThread(() => { permissions.Save(); });
+            permissions.Save(); // Timer runs offthread
         }
 
         internal RocketPermissionsGroup GetGroup(string groupId)
@@ -285,18 +285,15 @@ namespace Rocket.Core.Permissions
             {
                 group.Permissions.ForEach(permission =>
                 {
-
                     if (permission.Name.StartsWith("-"))
                     {
                         string perm_key = permission.Name.Substring(1);
-                        if (result.ContainsKey(perm_key))
-                            result.Remove(perm_key);
+                        result.Remove(perm_key); // faster than removeAll
                     }
                     else
                     {
                         result[permission.Name] = permission;
                     }
-
                 });
             });
             return result;
@@ -347,32 +344,32 @@ namespace Rocket.Core.Permissions
         public HashSet<Permission> GetPermissions(string playerId, HashSet<string> requestedPermissions)
         {
             // Get player permissions as a HashSet for fast lookups
-            HashSet<Permission> playerPermissions = this.GetPermissionHash(playerId);
+            Dictionary<string, Permission> playerPermissions = this.GetPermissionDict(playerId);
             HashSet<Permission> applyingPermissions = new HashSet<Permission>();
 
             // Check if any wildcard permission is present
-            if (playerPermissions.Any(p => p.Name == "*"))
+            if (playerPermissions.ContainsKey("*"))
             {
                 applyingPermissions.Add(new Permission("*"));
             }
             foreach (var permission in playerPermissions)
             {
-                if (requestedPermissions.Contains(permission.Name.ToLower()))
+                if (requestedPermissions.Contains(permission.Key.ToLower()))
                 {
-                    applyingPermissions.Add(permission);
+                    applyingPermissions.Add(permission.Value);
                 }
 
                 // Check for wildcard permissions (e.g., "command.*")
-                if (permission.Name.EndsWith(".*", StringComparison.InvariantCultureIgnoreCase))
+                if (permission.Key.EndsWith(".*", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    string basePermission = permission.Name.Substring(0, permission.Name.Length - 2); // Remove ".*"
+                    string basePermission = permission.Key.Substring(0, permission.Key.Length - 2); // Remove ".*"
 
                     foreach (var requestedPermission in requestedPermissions)
                     {
                         // If the base permission matches the requested permission
                         if (requestedPermission.StartsWith(basePermission, StringComparison.InvariantCultureIgnoreCase))
                         {
-                            applyingPermissions.Add(permission);
+                            applyingPermissions.Add(permission.Value);
                         }
                     }
                 }

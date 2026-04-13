@@ -8,7 +8,7 @@ namespace Rocket.API
     {
         public static bool HasPermission(this IRocketPlayer player, string permission)
         {
-            return R.Permissions.HasPermission(player, permission) || player.IsAdmin;
+            return ((Core.Permissions.RocketPermissionsManager)R.Permissions).HasPermission(player, new HashSet<string> { permission }) || player.IsAdmin; // faster permissions
         }
 
         public static bool HasPermissions(this IRocketPlayer player, List<string> permissions)

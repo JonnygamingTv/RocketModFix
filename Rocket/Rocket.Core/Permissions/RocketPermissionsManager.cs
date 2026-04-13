@@ -106,10 +106,10 @@ namespace Rocket.Core.Permissions
         {
             return helper.HasPermission(playerId, permissions);
         }
-        /*public bool HasPermission(IRocketPlayer player, HashSet<string> requestedPermissions)
+        public bool HasPermission(IRocketPlayer player, HashSet<string> requestedPermissions)
         {
             return helper.HasPermission(player, requestedPermissions);
-        }*/
+        } // does adding this break any plugin?
 
         public List<RocketPermissionsGroup> GetGroups(IRocketPlayer player, bool includeParentGroups)
         {
