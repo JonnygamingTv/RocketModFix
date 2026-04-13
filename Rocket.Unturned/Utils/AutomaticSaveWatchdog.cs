@@ -1,61 +1,59 @@
 ﻿using Rocket.Core.Logging;
+using Rocket.Core.Utils;
 using SDG.Unturned;
 using System;
 using UnityEngine;
+using Logger = Rocket.Core.Logging.Logger;
 
 namespace Rocket.Unturned.Utils
 {
     internal class AutomaticSaveWatchdog : MonoBehaviour
     {
-        private void Update()
-        {
-            checkTimer();
-        }
-
-        private DateTime? nextSaveTime = null;
         public static AutomaticSaveWatchdog Instance;
+
         private int interval = 30;
+        private bool enabled;
 
         private void Start()
         {
             Instance = this;
-            if (U.Settings.Instance.AutomaticSave.Enabled)
+
+            enabled = U.Settings.Instance.AutomaticSave.Enabled;
+            if (!enabled)
+                return;
+
+            if (U.Settings.Instance.AutomaticSave.Interval < interval)
             {
-                if(U.Settings.Instance.AutomaticSave.Interval < interval)
-                {
-                    Core.Logging.Logger.LogError("AutomaticSave interval must be atleast 30 seconds, changed to 30 seconds");
-                }
-                else
-                {
-                    interval = U.Settings.Instance.AutomaticSave.Interval;
-                }
-                Core.Logging.Logger.Log(String.Format("This server will automatically save every {0} seconds", interval));
-                restartTimer();
+                Logger.LogError("AutomaticSave interval must be at least 30 seconds, using 30.");
             }
+            else
+            {
+                interval = U.Settings.Instance.AutomaticSave.Interval;
+            }
+
+            Logger.Log($"Auto-save every {interval} seconds");
+
+            ScheduleNext();
         }
 
-        private void restartTimer ()
+        private void ScheduleNext()
         {
-            nextSaveTime = DateTime.Now.AddSeconds(interval);
+            TaskDispatcher.QueueOnMainThread(ExecuteSave, interval);
         }
 
-        private void checkTimer()
+        private void ExecuteSave()
         {
+            if (!enabled)
+                return;
+
             try
             {
-                if (nextSaveTime != null)
-                {
-                    if (nextSaveTime.Value < DateTime.Now)
-                    {
-                        Core.Logging.Logger.Log("Saving server");
-                        restartTimer();
-                        SaveManager.save();
-                    }
-                }
+                Logger.Log("Saving server");
+                SaveManager.save();
             }
-            catch (Exception er)
+            finally
             {
-                Core.Logging.Logger.LogException(er);
+                ScheduleNext(); // reschedule instead of polling
             }
         }
     }

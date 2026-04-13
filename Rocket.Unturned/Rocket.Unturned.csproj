@@ -5,7 +5,7 @@
     <SolutionDir>$([System.IO.Path]::GetFullPath($(MSBuildProjectDirectory)/../../))</SolutionDir>
   </PropertyGroup>
 
-  <Import Project="$(MSBuildThisFileDirectory)\..\props\SharedProjectProps.props"/>
+  <Import Project="$(MSBuildThisFileDirectory)\..\props\SharedProjectProps.props" />
 
   <ItemGroup>
     <ProjectReference Include="..\Rocket\Rocket.API\Rocket.API.csproj" />
@@ -13,10 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="RocketModFix.UnityEngine.Redist" Version="2021.3.29.1">
+    <PackageReference Include="RocketModFix.UnityEngine.Redist" Version="2022.3.62.3">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="RocketModFix.Unturned.Redist.Server" Version="3.24.6.1">
+    <PackageReference Include="RocketModFix.Unturned.Redist.Server" Version="3.25.10.1">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
   </ItemGroup>
@@ -24,22 +24,22 @@
   <Target Name="RocketModModuleArtifacts" AfterTargets="PostBuildEvent">
 
     <ItemGroup>
-      <RocketModFiles Include="$(OutDir)*Rocket*.dll"/>
-      <RocketModModuleFiles Include="Module/Rocket.Unturned/*"/>
-      <RocketModInstallationGuides Include="Module/InstallationGuides/*.txt"/>
-      <RocketModRuntimeLibs Include="Module/RuntimeLibs/*.dll"/>
+      <RocketModFiles Include="$(OutDir)*Rocket*.dll" />
+      <RocketModModuleFiles Include="Module/Rocket.Unturned/*" />
+      <RocketModInstallationGuides Include="Module/InstallationGuides/*.txt" />
+      <RocketModRuntimeLibs Include="Module/RuntimeLibs/*.dll" />
     </ItemGroup>
 
     <PropertyGroup>
       <RocketUnturnedOutputDirectory>$(OutDir)Rocket.Unturned/Rocket.Unturned</RocketUnturnedOutputDirectory>
     </PropertyGroup>
 
-    <MakeDir Directories="$(RocketUnturnedOutputDirectory)"/>
+    <MakeDir Directories="$(RocketUnturnedOutputDirectory)" />
 
-    <Copy SourceFiles="@(RocketModInstallationGuides)" DestinationFolder="$(RocketUnturnedOutputDirectory)\.."/>
-    <Copy SourceFiles="@(RocketModFiles)" DestinationFolder="$(RocketUnturnedOutputDirectory)"/>
-    <Copy SourceFiles="@(RocketModModuleFiles)" DestinationFolder="$(RocketUnturnedOutputDirectory)"/>
-    <Copy SourceFiles="@(RocketModRuntimeLibs)" DestinationFolder="$(RocketUnturnedOutputDirectory)"/>
+    <Copy SourceFiles="@(RocketModInstallationGuides)" DestinationFolder="$(RocketUnturnedOutputDirectory)\.." />
+    <Copy SourceFiles="@(RocketModFiles)" DestinationFolder="$(RocketUnturnedOutputDirectory)" />
+    <Copy SourceFiles="@(RocketModModuleFiles)" DestinationFolder="$(RocketUnturnedOutputDirectory)" />
+    <Copy SourceFiles="@(RocketModRuntimeLibs)" DestinationFolder="$(RocketUnturnedOutputDirectory)" />
 
   </Target>
 
