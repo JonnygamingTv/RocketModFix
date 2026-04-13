@@ -343,39 +343,47 @@ namespace Rocket.Core.Permissions
 
         public HashSet<Permission> GetPermissions(string playerId, HashSet<string> requestedPermissions)
         {
-            // Get player permissions as a HashSet for fast lookups
-            Dictionary<string, Permission> playerPermissions = this.GetPermissionDict(playerId);
-            HashSet<Permission> applyingPermissions = new HashSet<Permission>();
+            var playerPermissions = this.GetPermissionDict(playerId);
+            var result = new HashSet<Permission>();
 
-            // Check if any wildcard permission is present
+            // wildcard shortcut
             if (playerPermissions.ContainsKey("*"))
             {
-                applyingPermissions.Add(new Permission("*"));
+                result.Add(new Permission("*"));
+                return result;
             }
-            foreach (var permission in playerPermissions)
+
+            foreach (var req in requestedPermissions)
             {
-                if (requestedPermissions.Contains(permission.Key.ToLower()))
+                // direct match (fast path)
+                if (playerPermissions.TryGetValue(req, out var perm))
                 {
-                    applyingPermissions.Add(permission.Value);
+                    result.Add(perm);
+                    continue;
                 }
 
-                // Check for wildcard permissions (e.g., "command.*")
-                if (permission.Key.EndsWith(".*", StringComparison.InvariantCultureIgnoreCase))
+                // wildcard match fallback
+                int dotIndex = req.LastIndexOf('.');
+                if (dotIndex > 0)
                 {
-                    string basePermission = permission.Key.Substring(0, permission.Key.Length - 2); // Remove ".*"
+                    string baseReq = req.Substring(0, dotIndex);
 
-                    foreach (var requestedPermission in requestedPermissions)
+                    foreach (var kv in playerPermissions)
                     {
-                        // If the base permission matches the requested permission
-                        if (requestedPermission.StartsWith(basePermission, StringComparison.InvariantCultureIgnoreCase))
+                        if (!kv.Key.EndsWith(".*", StringComparison.Ordinal))
+                            continue;
+
+                        string basePlayer = kv.Key.Substring(0, kv.Key.Length - 2);
+
+                        if (string.Equals(basePlayer, baseReq, StringComparison.OrdinalIgnoreCase))
                         {
-                            applyingPermissions.Add(permission.Value);
+                            result.Add(kv.Value);
                         }
                     }
                 }
             }
 
-            return applyingPermissions; // Return the HashSet of matching permissions
+            return result;
         }
 
     }

@@ -101,6 +101,29 @@ namespace Rocket.Core.Permissions
         {
             return helper.HasPermission(player, permissions);
         }
+        public bool HasPermissionFast(IRocketPlayer player, string permission)
+        {
+            var playerPermissions = helper.GetPermissionDict(player.Id);
+
+            if (playerPermissions.ContainsKey("*"))
+                return true;
+
+            if (playerPermissions.ContainsKey(permission))
+                return true;
+
+            foreach (var kv in playerPermissions)
+            {
+                if (!kv.Key.EndsWith(".*", StringComparison.Ordinal))
+                    continue;
+
+                var basePerm = kv.Key.Substring(0, kv.Key.Length - 2);
+
+                if (permission.StartsWith(basePerm, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
 
         public bool HasPermission(string playerId, List<string> permissions)
         {
