@@ -50,7 +50,7 @@ namespace Rocket.Core.Utils
                 return;
             }
 
-            // ✅ THREAD-SAFE TIME (no Unity API)
+            // THREAD-SAFE TIME (no Unity API)
             double execTime = _watch.Elapsed.TotalSeconds + delay;
 
             lock (_heapLock)
@@ -122,7 +122,7 @@ namespace Rocket.Core.Utils
                 return;
 
             // ── Immediate queue (bounded execution) ──
-            const int maxPerFrame = 1000; // prevents frame stalls
+            int maxPerFrame = 1000; // prevents frame stalls
             int count = 0;
 
             while (count < maxPerFrame && _queue.TryDequeue(out var action))

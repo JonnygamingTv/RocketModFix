@@ -34,7 +34,7 @@ namespace Rocket.Core.Permissions
                 Logging.Logger.LogException(ex);
             }
         }
-        
+
         private bool updateWebPermissions = false;
         private DateTime lastWebPermissionsUpdate;
 
@@ -71,9 +71,10 @@ namespace Rocket.Core.Permissions
                 helper.permissions.Instance.GroupsDict[_Group.Id] = _Group;
             }
         }
-        
+
         //public void ManualLoad() { Awake(); }
-        public System.Collections.IEnumerator ManualUpdate() {
+        public System.Collections.IEnumerator ManualUpdate()
+        {
             while (R.Settings.Instance.WebPermissions.Enabled)
             {
                 if (updateWebPermissions)
@@ -154,7 +155,7 @@ namespace Rocket.Core.Permissions
             return helper.GetPermissions(playerId);
         }
 
-        public List<Permission> GetPermissions(IRocketPlayer player,List<string> requestedPermissions)
+        public List<Permission> GetPermissions(IRocketPlayer player, List<string> requestedPermissions)
         {
             return helper.GetPermissions(player, requestedPermissions);
         }
@@ -167,7 +168,7 @@ namespace Rocket.Core.Permissions
 
         public RocketPermissionsProviderResult AddPlayerToGroup(string groupId, IRocketPlayer player)
         {
-            return helper.AddPlayerToGroup(groupId,player);
+            return helper.AddPlayerToGroup(groupId, player);
         }
 
         public RocketPermissionsProviderResult AddPlayerToGroup(string groupId, string playerId)
