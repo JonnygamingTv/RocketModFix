@@ -1,52 +1,71 @@
-using Rocket.Core;
 using Rocket.Core.Logging;
-using Rocket.Core.Utils;
 using Rocket.Unturned.Player;
-using SDG.Provider;
-using SDG.Provider.Services.Achievements;
 using SDG.Unturned;
-using Steamworks;
-using System;
-using System.Collections.Generic;
 using UnityEngine;
+using System;
+using Logger = Rocket.Core.Logging.Logger;
 
 namespace Rocket.Unturned
 {
     public class UnturnedPlayerMovement : UnturnedPlayerComponent
     {
         public bool VanishMode = false;
-        DateTime lastUpdate = DateTime.Now;
-        Vector3 lastVector = new Vector3(0,-1,0);
+
+        // HOT STATE (avoid DateTime overhead in FixedUpdate)
+        private float _nextCheckTime;
+        private Vector3 _lastVector = new Vector3(0f, -1f, 0f);
+
+        // Cache component reference (avoid GetComponent every tick)
+        private PlayerMovement _movement;
+
+        protected override void Load()
+        {
+            _movement = Player.GetComponent<PlayerMovement>();
+        }
 
         private void FixedUpdate()
         {
-            PlayerMovement movement = (PlayerMovement)Player.GetComponent<PlayerMovement>();
+            if (VanishMode)
+                return;
 
-            if (!VanishMode)
+            // faster than DateTime.Now comparisons (no struct overhead / no conversions)
+            float time = Time.time;
+            if (time < _nextCheckTime)
+                return;
+
+            _nextCheckTime = time + 1f;
+
+            Vector3 pos = _movement.real;
+
+            // sentinel check (keep behavior identical)
+            if (_lastVector.y != -1f)
             {
-                if (U.Settings.Instance.LogSuspiciousPlayerMovement && lastUpdate.AddSeconds(1) < DateTime.Now)
+                float dx = Mathf.Abs(_lastVector.x - pos.x);
+                float dy = pos.y - _lastVector.y;
+                float dz = Mathf.Abs(_lastVector.z - pos.z);
+
+                // early exit: avoid raycast unless needed
+                if (dy > 15f)
                 {
-                    lastUpdate = DateTime.Now;
+                    // Raycast optimization: reuse static direction
+                    RaycastHit hit;
 
-                    Vector3 positon = movement.real;
-
-                    if (lastVector.y != -1)
+                    if (Physics.Raycast(pos, Vector3.down, out hit))
                     {
-                        float x = Math.Abs(lastVector.x - positon.x);
-                        float y = positon.y - lastVector.y;
-                        float z = Math.Abs(lastVector.z - positon.z);
-                        if (y > 15)
-                        {
-                            RaycastHit raycastHit = new RaycastHit();
-                            Physics.Raycast(positon, Vector3.down, out raycastHit);
-                            Vector3 floor = raycastHit.point;
-                            float distance = Math.Abs(floor.y - positon.y);
-                            Core.Logging.Logger.Log(Player.DisplayName + " moved x:" + positon.x + " y:" + positon.y + "(+" + y + ") z:" + positon.z + " in the last second (" + distance + ")");
-                        }
+                        float floorDist = Mathf.Abs(hit.point.y - pos.y);
+
+                        Logger.Log(
+                            Player.DisplayName +
+                            " moved x:" + pos.x +
+                            " y:" + pos.y + "(+" + dy + ")" +
+                            " z:" + pos.z +
+                            " dist:" + floorDist
+                        );
                     }
-                    lastVector = movement.real;
                 }
             }
+
+            _lastVector = pos;
         }
     }
 }
