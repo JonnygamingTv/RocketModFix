@@ -19,18 +19,21 @@ namespace Rocket.Core.Utils
 
         // ─────────────────────────────────────────────
         // Delayed queue (min-heap)
+        // NOTE: uses Stopwatch time (thread-safe)
         // ─────────────────────────────────────────────
         private static readonly List<DelayedQueueItem> _heap = new List<DelayedQueueItem>(64);
         private static readonly object _heapLock = new object();
 
+        private static readonly System.Diagnostics.Stopwatch _watch = System.Diagnostics.Stopwatch.StartNew();
+
         public struct DelayedQueueItem
         {
-            public float time;
+            public double time;
             public Action action;
         }
 
         // ─────────────────────────────────────────────
-        // Public API (unchanged)
+        // Public API
         // ─────────────────────────────────────────────
 
         public static void QueueOnMainThread(Action action)
@@ -38,7 +41,8 @@ namespace Rocket.Core.Utils
 
         public static void QueueOnMainThread(Action action, float delay)
         {
-            if (action == null) return;
+            if (action == null)
+                return;
 
             if (delay <= 0f)
             {
@@ -46,7 +50,8 @@ namespace Rocket.Core.Utils
                 return;
             }
 
-            float execTime = Time.realtimeSinceStartup + delay;
+            // ✅ THREAD-SAFE TIME (no Unity API)
+            double execTime = _watch.Elapsed.TotalSeconds + delay;
 
             lock (_heapLock)
             {
@@ -55,7 +60,7 @@ namespace Rocket.Core.Utils
         }
 
         // ─────────────────────────────────────────────
-        // Async execution (kept as-is, slightly cleaned)
+        // Async execution
         // ─────────────────────────────────────────────
 
         private static int numThreads;
@@ -113,20 +118,25 @@ namespace Rocket.Core.Utils
 
         private void FixedUpdate()
         {
-            if (!awake) return;
+            if (!awake)
+                return;
 
-            // ── Immediate queue ──
-            while (_queue.TryDequeue(out var action))
+            // ── Immediate queue (bounded execution) ──
+            const int maxPerFrame = 1000; // prevents frame stalls
+            int count = 0;
+
+            while (count < maxPerFrame && _queue.TryDequeue(out var action))
             {
                 try { action(); }
                 catch (Exception ex)
                 {
                     Logger.LogException(ex, "Error executing action");
                 }
+                count++;
             }
 
             // ── Delayed queue ──
-            float now = Time.realtimeSinceStartup;
+            double now = _watch.Elapsed.TotalSeconds;
 
             while (true)
             {
@@ -134,8 +144,8 @@ namespace Rocket.Core.Utils
 
                 lock (_heapLock)
                 {
-                    if (_heap.Count == 0) break;
-                    if (_heap[0].time > now) break;
+                    if (_heap.Count == 0 || _heap[0].time > now)
+                        break;
 
                     item = HeapPop();
                 }
@@ -149,7 +159,7 @@ namespace Rocket.Core.Utils
         }
 
         // ─────────────────────────────────────────────
-        // Min-heap implementation
+        // Min-heap
         // ─────────────────────────────────────────────
 
         private static void HeapPush(DelayedQueueItem item)
@@ -160,7 +170,8 @@ namespace Rocket.Core.Utils
             while (i > 0)
             {
                 int parent = (i - 1) >> 1;
-                if (_heap[parent].time <= item.time) break;
+                if (_heap[parent].time <= item.time)
+                    break;
 
                 _heap[i] = _heap[parent];
                 i = parent;
@@ -184,14 +195,16 @@ namespace Rocket.Core.Utils
             while (true)
             {
                 int left = (i << 1) + 1;
-                if (left >= _heap.Count) break;
+                if (left >= _heap.Count)
+                    break;
 
                 int right = left + 1;
                 int smallest = (right < _heap.Count && _heap[right].time < _heap[left].time)
                     ? right
                     : left;
 
-                if (_heap[smallest].time >= x.time) break;
+                if (_heap[smallest].time >= x.time)
+                    break;
 
                 _heap[i] = _heap[smallest];
                 i = smallest;
