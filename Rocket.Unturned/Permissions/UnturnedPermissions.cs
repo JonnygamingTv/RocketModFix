@@ -52,7 +52,7 @@ namespace Rocket.Unturned.Permissions
             }
         }
         [EditorBrowsable(EditorBrowsableState.Never)]
-        internal static bool CheckPermissions(UnturnedPlayer player, string permission)
+        internal static bool CheckPermissions2(UnturnedPlayer player, string permission)
         {
             Regex r = new Regex("^\\/\\S*");
             string requestedCommand = r.Match(permission.ToLower()).Value.TrimStart('/');
