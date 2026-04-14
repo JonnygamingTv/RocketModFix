@@ -1,5 +1,4 @@
 ﻿using Rocket.Core.Logging;
-using Rocket.Core.Utils;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -66,14 +65,13 @@ namespace Rocket.Core.Steam
             Reload();
         }
 
-        internal static WebClient wc = new WebClient();
         public void Reload()
         {
             string field = "unknown";
             try
             {
                 XmlDocument doc = new XmlDocument();
-                doc.LoadXml(wc.DownloadString("http://steamcommunity.com/profiles/" + SteamID64 + "?xml=1"));
+                doc.LoadXml(new WebClient().DownloadString("http://steamcommunity.com/profiles/" + SteamID64 + "?xml=1"));
 
                 SteamID = doc["profile"]["steamID"]?.ParseString(); field = "SteamID";
                 OnlineState = doc["profile"]["onlineState"]?.ParseString(); field = "OnlineState";
