@@ -22,7 +22,7 @@ namespace Rocket.Core.Utils
         // NOTE: uses Stopwatch time (thread-safe)
         // ─────────────────────────────────────────────
         private static readonly List<DelayedQueueItem> _heap = new List<DelayedQueueItem>(64);
-        private static readonly object _heapLock = new object();
+        // private static readonly object _heapLock = new object();
 
         private static readonly System.Diagnostics.Stopwatch _watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -53,7 +53,7 @@ namespace Rocket.Core.Utils
             // THREAD-SAFE TIME (no Unity API)
             double execTime = _watch.Elapsed.TotalSeconds + delay;
 
-            lock (_heapLock)
+            lock (_heap)
             {
                 HeapPush(new DelayedQueueItem { time = execTime, action = action });
             }
@@ -142,7 +142,7 @@ namespace Rocket.Core.Utils
             {
                 DelayedQueueItem item;
 
-                lock (_heapLock)
+                lock (_heap)
                 {
                     if (_heap.Count == 0 || _heap[0].time > now)
                         break;
