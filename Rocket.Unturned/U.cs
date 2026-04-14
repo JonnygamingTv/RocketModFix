@@ -299,10 +299,14 @@ namespace Rocket.Unturned
             {
                 if (text.StartsWith("/"))
                 {
-                    text.Substring(1);
-                    if (R.Commands != null && UnturnedPermissions.CheckPermissions(player, text))
+                    // text.Substring(1);
+                    if (R.Commands != null)
                     {
-                        R.Commands.Execute(UnturnedPlayer.FromSteamPlayer(player), text);
+                        UnturnedPlayer pl = UnturnedPlayer.FromSteamPlayer(player);
+                        if (UnturnedPermissions.CheckPermissions(pl, text))
+                        {
+                            R.Commands.Execute(pl, text);
+                        }
                     }
                     shouldList = false;
                 }
