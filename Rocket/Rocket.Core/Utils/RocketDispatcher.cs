@@ -50,7 +50,7 @@ namespace Rocket.Core.Utils
                 return;
             }
 
-            // ✅ THREAD-SAFE TIME (no Unity API)
+            // THREAD-SAFE TIME (no Unity API)
             double execTime = _watch.Elapsed.TotalSeconds + delay;
 
             lock (_heapLock)
