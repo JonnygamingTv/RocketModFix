@@ -92,6 +92,7 @@ namespace Rocket.Unturned.Commands
                         // https://github.com/SmartlyDressedGames/Unturned-3.x-Community/issues/1794
                         UnturnedChat.Say(caller, U.Translate("command_rocket_reload_disabled"));
                         R.ReloadCmds();
+                        R.Plugins.LoadNewPlugins();
                         UnturnedChat.Say(caller, U.Translate("command_rocket_reloaded_commands"));
                         break;
                     case "gc":
