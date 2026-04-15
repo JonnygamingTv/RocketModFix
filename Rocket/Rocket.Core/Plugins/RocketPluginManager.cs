@@ -180,7 +180,7 @@ namespace Rocket.Core.Plugins
             {
                 try
                 {
-                    Assembly assembly = Assembly.LoadFile(library.FullName);//Assembly.Load(File.ReadAllBytes(library.FullName));
+                    Assembly assembly = Assembly.Load(File.ReadAllBytes(library.FullName)); // Load from file to support /rocket reload even if file is overwritten.
 
                     List<Type> types = RocketHelper.GetTypesFromInterface(assembly, "IRocketPlugin").FindAll(x => !x.IsAbstract);
 
