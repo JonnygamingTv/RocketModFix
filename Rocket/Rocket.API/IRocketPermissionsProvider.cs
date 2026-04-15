@@ -10,7 +10,7 @@ namespace Rocket.API
     {
         public static bool HasPermission(this IRocketPermissionsProvider rocketPermissionProvider,IRocketPlayer player, string permission)
         {
-            return rocketPermissionProvider.HasPermission(player, new List<string>() { permission });
+            return rocketPermissionProvider.HasPermission(player, new List<string>(1) { permission });
         }
 
         public static bool HasPermission(this IRocketPermissionsProvider rocketPermissionProvider, IRocketPlayer player, IRocketCommand command)
@@ -40,7 +40,8 @@ namespace Rocket.API
     public interface IRocketPermissionsProvider
     {
         bool HasPermission(IRocketPlayer player, List<string> requestedPermissions);
-
+        //bool HasPermission(IRocketPlayer player, HashSet<string> requestedPermissions);
+        // Seems like modifying interface will break some plugins like ShimmysAdminTools
         List<RocketPermissionsGroup> GetGroups(IRocketPlayer player, bool includeParentGroups);
         List<Permission> GetPermissions(IRocketPlayer player);
         List<Permission> GetPermissions(IRocketPlayer player, List<string> requestedPermissions);
@@ -54,5 +55,8 @@ namespace Rocket.API
         RocketPermissionsProviderResult DeleteGroup(string groupId);
 
         void Reload();
+        /*
+        void ManualLoad();
+        System.Collections.IEnumerator ManualUpdate();*/
     }
 }
