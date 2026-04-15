@@ -13,7 +13,7 @@ namespace Rocket.Core.Permissions
     {
         private RocketPermissionsHelper helper;
 
-        private void Start()
+        private void Awake()
         {
             try
             {
@@ -38,7 +38,7 @@ namespace Rocket.Core.Permissions
         private bool updateWebPermissions = false;
         private DateTime lastWebPermissionsUpdate;
 
-        private void FixedUpdate()
+        /*private void FixedUpdate()
         {
             try
             {
@@ -56,22 +56,83 @@ namespace Rocket.Core.Permissions
             {
                 Logging.Logger.LogException(ex);
             }
-        }
+        }*/
 
         public void Reload()
         {
             helper.permissions.Load();
+            helper.permissions.Instance.GroupsDict.Clear();
+            foreach (RocketPermissionsGroup _Group in helper.permissions.Instance.Groups)
+            {
+                if (_Group._Members.Count == 0)
+                {
+                    _Group._Members = new HashSet<string>(_Group.Members);
+                }
+                helper.permissions.Instance.GroupsDict[_Group.Id] = _Group;
+            }
+        }
+        
+        //public void ManualLoad() { Awake(); }
+        public System.Collections.IEnumerator ManualUpdate() {
+            while (R.Settings.Instance.WebPermissions.Enabled)
+            {
+                if (updateWebPermissions)
+                {
+                    updateWebPermissions = false;
+                    try
+                    {
+                        helper.permissions.Load((IAsset<RocketPermissions> asset) =>
+                        {
+                            updateWebPermissions = true;
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        updateWebPermissions = true;
+                        Logging.Logger.LogException(ex);
+                    }
+                }
+                yield return new WaitForSeconds(R.Settings.Instance.WebPermissions.Interval);
+            }
+            yield break;
         }
 
         public bool HasPermission(IRocketPlayer player, List<string> permissions)
         {
             return helper.HasPermission(player, permissions);
         }
+        public bool HasPermissionFast(IRocketPlayer player, string permission)
+        {
+            var playerPermissions = helper.GetPermissionDict(player.Id);
+
+            if (playerPermissions.ContainsKey("*"))
+                return true;
+
+            if (playerPermissions.ContainsKey(permission))
+                return true;
+
+            foreach (var kv in playerPermissions)
+            {
+                if (!kv.Key.EndsWith(".*", StringComparison.Ordinal))
+                    continue;
+
+                var basePerm = kv.Key.Substring(0, kv.Key.Length - 2);
+
+                if (permission.StartsWith(basePerm, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
 
         public bool HasPermission(string playerId, List<string> permissions)
         {
             return helper.HasPermission(playerId, permissions);
         }
+        public bool HasPermission(IRocketPlayer player, HashSet<string> requestedPermissions)
+        {
+            return helper.HasPermission(player, requestedPermissions);
+        } // does adding this break any plugin?
 
         public List<RocketPermissionsGroup> GetGroups(IRocketPlayer player, bool includeParentGroups)
         {

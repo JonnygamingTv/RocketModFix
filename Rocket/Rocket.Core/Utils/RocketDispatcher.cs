@@ -1,55 +1,75 @@
-﻿using Rocket.Core.Logging;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
+using Logger = Rocket.Core.Logging.Logger;
 
 namespace Rocket.Core.Utils
 {
     public class TaskDispatcher : MonoBehaviour
     {
-        private static int numThreads;
-        private static bool awake = false;
+        private static volatile bool awake;
 
-        private static List<Action> actions = new List<Action>();
-        private static List<DelayedQueueItem> delayed = new List<DelayedQueueItem>();
+        // ─────────────────────────────────────────────
+        // Immediate queue (lock-free)
+        // ─────────────────────────────────────────────
+        private static readonly ConcurrentQueue<Action> _queue = new ConcurrentQueue<Action>();
+
+        // ─────────────────────────────────────────────
+        // Delayed queue (min-heap)
+        // NOTE: uses Stopwatch time (thread-safe)
+        // ─────────────────────────────────────────────
+        private static readonly List<DelayedQueueItem> _heap = new List<DelayedQueueItem>(64);
+        // private static readonly object _heapLock = new object();
+
+        private static readonly System.Diagnostics.Stopwatch _watch = System.Diagnostics.Stopwatch.StartNew();
 
         public struct DelayedQueueItem
         {
-            public float time;
+            public double time;
             public Action action;
         }
 
+        // ─────────────────────────────────────────────
+        // Public API
+        // ─────────────────────────────────────────────
+
         public static void QueueOnMainThread(Action action)
+            => QueueOnMainThread(action, 0f);
+
+        public static void QueueOnMainThread(Action action, float delay)
         {
-            QueueOnMainThread(action, 0f);
+            if (action == null)
+                return;
+
+            if (delay <= 0f)
+            {
+                _queue.Enqueue(action);
+                return;
+            }
+
+            // THREAD-SAFE TIME (no Unity API)
+            double execTime = _watch.Elapsed.TotalSeconds + delay;
+
+            lock (_heap)
+            {
+                HeapPush(new DelayedQueueItem { time = execTime, action = action });
+            }
         }
 
-        public static void QueueOnMainThread(Action action, float time)
-        {
-            if (time != 0)
-            {
-                lock (delayed)
-                {
-                    delayed.Add(new DelayedQueueItem { time = Time.time + time, action = action });
-                }
-            }
-            else
-            {
-                lock (actions)
-                {
-                    actions.Add(action);
-                }
-            }
-        }
+        // ─────────────────────────────────────────────
+        // Async execution
+        // ─────────────────────────────────────────────
+
+        private static int numThreads;
 
         public static Thread RunAsync(Action a)
         {
-            while (numThreads >= 8)
-            {
+            while (Volatile.Read(ref numThreads) >= 8)
                 Thread.Sleep(1);
-            }
+
             Interlocked.Increment(ref numThreads);
             ThreadPool.QueueUserWorkItem(RunAction, a);
             return null;
@@ -57,19 +77,39 @@ namespace Rocket.Core.Utils
 
         private static void RunAction(object action)
         {
-            try
+            try { ((Action)action)(); }
+            catch (Exception ex)
             {
-                ((Action)action)();
-            }
-            catch(Exception ex)
-            {
-                Logging.Logger.LogException(ex,"Error while running action");
+                Logger.LogException(ex, "Error while running action");
             }
             finally
             {
                 Interlocked.Decrement(ref numThreads);
             }
         }
+
+        private static readonly SemaphoreSlim _limit = new SemaphoreSlim(8);
+
+        public static Task OffThread(Action a)
+        {
+            return Task.Run(async () =>
+            {
+                await _limit.WaitAsync().ConfigureAwait(false);
+                try { a(); }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, "Error while running action");
+                }
+                finally
+                {
+                    _limit.Release();
+                }
+            });
+        }
+
+        // ─────────────────────────────────────────────
+        // Unity lifecycle
+        // ─────────────────────────────────────────────
 
         private void Awake()
         {
@@ -78,45 +118,100 @@ namespace Rocket.Core.Utils
 
         private void FixedUpdate()
         {
-            if (!awake) return;
+            if (!awake)
+                return;
 
-            List<Action> currentActions = new List<Action>();
-            lock (actions)
+            // ── Immediate queue (bounded execution) ──
+            const int maxPerFrame = 1000; // prevents frame stalls
+            int count = 0;
+
+            while (count < maxPerFrame && _queue.TryDequeue(out var action))
             {
-                currentActions.AddRange(actions);
-                actions.Clear();
-            }
-            foreach (var a in currentActions)
-            {
-                try
-                {
-                    a();
-                }
+                try { action(); }
                 catch (Exception ex)
                 {
-                    Logging.Logger.LogException(ex, "An error occured while executing action");
+                    Logger.LogException(ex, "Error executing action");
                 }
+                count++;
             }
 
-            List<DelayedQueueItem> currentDelayed = new List<DelayedQueueItem>();
-            lock (delayed)
+            // ── Delayed queue ──
+            double now = _watch.Elapsed.TotalSeconds;
+
+            while (true)
             {
-                currentDelayed.AddRange(delayed.Where(d => d.time <= Time.time));
-                foreach (var item in currentDelayed)
-                    delayed.Remove(item);
-            }
-            foreach (DelayedQueueItem item in currentDelayed)
-            {
-                try
+                DelayedQueueItem item;
+
+                lock (_heap)
                 {
-                    item.action();
+                    if (_heap.Count == 0 || _heap[0].time > now)
+                        break;
+
+                    item = HeapPop();
                 }
+
+                try { item.action(); }
                 catch (Exception ex)
                 {
-                    Logging.Logger.LogException(ex, "An error occured while executing delayed action");
+                    Logger.LogException(ex, "Error executing delayed action");
                 }
             }
+        }
 
+        // ─────────────────────────────────────────────
+        // Min-heap
+        // ─────────────────────────────────────────────
+
+        private static void HeapPush(DelayedQueueItem item)
+        {
+            int i = _heap.Count;
+            _heap.Add(item);
+
+            while (i > 0)
+            {
+                int parent = (i - 1) >> 1;
+                if (_heap[parent].time <= item.time)
+                    break;
+
+                _heap[i] = _heap[parent];
+                i = parent;
+            }
+
+            _heap[i] = item;
+        }
+
+        private static DelayedQueueItem HeapPop()
+        {
+            int last = _heap.Count - 1;
+            var root = _heap[0];
+            var x = _heap[last];
+            _heap.RemoveAt(last);
+
+            if (_heap.Count == 0)
+                return root;
+
+            int i = 0;
+
+            while (true)
+            {
+                int left = (i << 1) + 1;
+                if (left >= _heap.Count)
+                    break;
+
+                int right = left + 1;
+                int smallest = (right < _heap.Count && _heap[right].time < _heap[left].time)
+                    ? right
+                    : left;
+
+                if (_heap[smallest].time >= x.time)
+                    break;
+
+                _heap[i] = _heap[smallest];
+                i = smallest;
+            }
+
+            _heap[i] = x;
+            return root;
         }
     }
 }

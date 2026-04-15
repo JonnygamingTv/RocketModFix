@@ -23,7 +23,8 @@ namespace Rocket.Core.Plugins
         /// <summary>
         /// Maps assembly name to .dll file path.
         /// </summary>
-        private Dictionary<AssemblyName, string> libraries = new Dictionary<AssemblyName, string>();
+        private Dictionary<AssemblyName, string> libraries = new Dictionary<AssemblyName, string>(); // It appears AssemblyName is an unstable key
+        private Dictionary<string, string> libs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public List<IRocketPlugin> GetPlugins()
         {
@@ -45,14 +46,32 @@ namespace Rocket.Core.Plugins
             try
             {
                 AssemblyName requestedName = new AssemblyName(args.Name);
+                /* Not necessary.
+                // Check already loaded assemblies FIRST
+                var alreadyLoaded = AppDomain.CurrentDomain
+                    .GetAssemblies()
+                    .FirstOrDefault(a =>
+                        string.Equals(a.GetName().Name, requestedName.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (alreadyLoaded != null)
+                {
+                    return alreadyLoaded;
+                }
+                */
                 var matchesByName = libraries.Where(lib => string.Equals(lib.Key.Name, requestedName.Name));
-                
+
                 // Prefer exactly-matching version if possible.
                 var bestMatch = matchesByName.FirstOrDefault(lib => lib.Key.Version == requestedName.Version);
+
                 if (string.IsNullOrEmpty(bestMatch.Value))
                 {
                     // Otherwise, fallback to highest version.
                     bestMatch = matchesByName.OrderByDescending(lib => lib.Key.Version).FirstOrDefault();
+                }
+                if (string.IsNullOrEmpty(bestMatch.Value) || bestMatch.Key == null)
+                {
+                    // Match the old dependency resolver.
+                    bestMatch = matchesByName.FirstOrDefault(lib => lib.Key.Version != null && lib.Key.Version >= requestedName.Version);
                 }
                 if (!string.IsNullOrEmpty(bestMatch.Value))
                 {
@@ -99,15 +118,16 @@ namespace Rocket.Core.Plugins
         private void loadPlugins()
         {
             libraries = FindAssembliesInDirectory(Environment.LibrariesDirectory);
-            foreach(KeyValuePair<AssemblyName,string> pair in FindAssembliesInDirectory(Environment.PluginsDirectory))
+            libs = GetAssembliesInDirectory(Environment.LibrariesDirectory);
+            foreach (KeyValuePair<string, string> pair in GetAssembliesInDirectory(Environment.PluginsDirectory))
+            {
+                if (!libs.ContainsKey(pair.Key))
+                    libs.Add(pair.Key, pair.Value);
+            }
+            foreach (KeyValuePair<AssemblyName,string> pair in FindAssembliesInDirectory(Environment.PluginsDirectory))
             {
                 if(!libraries.ContainsKey(pair.Key))
                     libraries.Add(pair.Key,pair.Value);
-            }
-
-            foreach (KeyValuePair<AssemblyName, string> pair in libraries)
-            {
-                Logging.Logger.Log($"Rocket dependency registered: {pair.Key} at {pair.Value}");
             }
 
             pluginAssemblies = LoadAssembliesFromDirectory(Environment.PluginsDirectory);
@@ -128,6 +148,44 @@ namespace Rocket.Core.Plugins
             }
             plugins.Clear();
         }
+        public void LoadNewPlugins() // since we cannot hot-reload plugins, we can at least support adding new plugins LIVE.
+        {
+            foreach (KeyValuePair<AssemblyName, string> pair in FindAssembliesInDirectory(Environment.LibrariesDirectory))
+            {
+                if (!libraries.ContainsKey(pair.Key))
+                    libraries.Add(pair.Key, pair.Value);
+            }
+            foreach (KeyValuePair<string, string> pair in GetAssembliesInDirectory(Environment.LibrariesDirectory))
+            {
+                if (!libs.ContainsKey(pair.Key))
+                    libs.Add(pair.Key, pair.Value);
+            }
+            Dictionary<string, string> assembliesNow = GetAssembliesInDirectory(Environment.PluginsDirectory);
+            List<Assembly> newPlugins = new List<Assembly>();
+            foreach (KeyValuePair<string,string> pair in assembliesNow)
+            {
+                if (!libs.ContainsKey(pair.Key))
+                {
+                    Assembly ? asm = LoadAssemblyFromFile(pair.Value);
+                    if (asm != null)
+                    {
+                        Logging.Logger.Log("Adding new plugin: "+pair.Value);
+                        newPlugins.Add(asm);
+                        pluginAssemblies.Add(asm); // adds to /rocket plugins
+                        libs[pair.Key] = pair.Value;
+                    }
+                }
+            }
+            if (newPlugins.Count == 0) return;
+            List<Type> pluginImplemenations = RocketHelper.GetTypesFromInterface(newPlugins, "IRocketPlugin");
+            foreach (Type pluginType in pluginImplemenations)
+            {
+                GameObject plugin = new GameObject(pluginType.Name, pluginType);
+                DontDestroyOnLoad(plugin);
+                plugins.Add(plugin);
+            }
+            OnPluginsLoaded.TryInvoke();
+        }
 
         internal void Reload()
         {
@@ -135,10 +193,29 @@ namespace Rocket.Core.Plugins
             loadPlugins();
         }
 
+        private static Dictionary<string, string> GetAssembliesInDirectory(string directory)
+        {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (FileInfo library in ListDirFiles(directory))
+            {
+                try
+                {
+                    var name = AssemblyName.GetAssemblyName(library.FullName);
+
+                    // Use simple name as key
+                    dict[name.Name] = library.FullName;
+                }
+                catch { }
+            }
+
+            return dict;
+        }
+
         public static Dictionary<string, string> GetAssembliesFromDirectory(string directory, string extension = "*.dll")
         {
             Dictionary<string, string> l = new Dictionary<string, string>();
-            IEnumerable<FileInfo> libraries = new DirectoryInfo(directory).GetFiles(extension, SearchOption.AllDirectories);
+            IEnumerable<FileInfo> libraries = ListDirFiles(directory);
             foreach (FileInfo library in libraries)
             {
                 try
@@ -157,7 +234,7 @@ namespace Rocket.Core.Plugins
         private static Dictionary<AssemblyName, string> FindAssembliesInDirectory(string directory)
         {
             Dictionary<AssemblyName, string> l = new Dictionary<AssemblyName, string>();
-            IEnumerable<FileInfo> libraries = new DirectoryInfo(directory).GetFiles("*.dll", SearchOption.AllDirectories);
+            IEnumerable<FileInfo> libraries = ListDirFiles(directory);
             foreach (FileInfo library in libraries)
             {
                 try
@@ -173,32 +250,42 @@ namespace Rocket.Core.Plugins
         public static List<Assembly> LoadAssembliesFromDirectory(string directory, string extension = "*.dll")
         {
             List<Assembly> assemblies = new List<Assembly>();
-            IEnumerable<FileInfo> pluginsLibraries = new DirectoryInfo(directory).GetFiles(extension, SearchOption.AllDirectories);
+            IEnumerable<FileInfo> pluginsLibraries = ListDirFiles(directory, extension);
 
             foreach (FileInfo library in pluginsLibraries)
             {
-                try
-                {
-                    Assembly assembly = Assembly.LoadFile(library.FullName);//Assembly.Load(File.ReadAllBytes(library.FullName));
-
-                    List<Type> types = RocketHelper.GetTypesFromInterface(assembly, "IRocketPlugin").FindAll(x => !x.IsAbstract);
-
-                    if (types.Count == 1)
-                    {
-                        Logging.Logger.Log("Loading "+ assembly.GetName().Name +" from "+ assembly.Location);
-                        assemblies.Add(assembly);
-                    }
-                    else
-                    {
-                        Logging.Logger.LogError("Invalid or outdated plugin assembly: " + assembly.GetName().Name);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.Logger.LogError(ex, "Could not load plugin assembly: " + library.Name);
-                }
+                Assembly? assembly = LoadAssemblyFromFile(library.FullName);
+                if(assembly != null) assemblies.Add(assembly);
             }
             return assemblies;
+        }
+        public static IEnumerable<FileInfo> ListDirFiles(string dir, string ext = "*.dll")
+        {
+            return new DirectoryInfo(dir).GetFiles(ext, SearchOption.AllDirectories);
+        }
+        public static Assembly? LoadAssemblyFromFile(string file)
+        {
+            try
+            {
+                Assembly assembly = Assembly.Load(File.ReadAllBytes(file)); // Load from file to support /rocket reload even if file is overwritten.
+
+                List<Type> types = RocketHelper.GetTypesFromInterface(assembly, "IRocketPlugin").FindAll(x => !x.IsAbstract);
+
+                if (types.Count == 1)
+                {
+                    Logging.Logger.Log("Loading " + assembly.GetName().Name + " from " + (!string.IsNullOrEmpty(assembly.Location)?assembly.Location:file));
+                    return assembly;
+                }
+                else
+                {
+                    Logging.Logger.LogError("Invalid or outdated plugin assembly: " + assembly.GetName().Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Logger.LogError(ex, "Could not load plugin assembly: " + file);
+            }
+            return null;
         }
     }
 }

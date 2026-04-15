@@ -6,48 +6,38 @@ namespace Rocket.Core.Utils
 {
     internal class AutomaticShutdownWatchdog : MonoBehaviour
     {
-        private void FixedUpdate()
-        {
-            if (started)
-            {
-                checkTimerRestart();
-            }
-        }
-
-        private DateTime? shutdownTime = null;
-        private bool shutdown = false;
         public static AutomaticShutdownWatchdog Instance;
-        private bool started = false;
-        private DateTime startedTime = DateTime.Now;
+
+        private bool started;
+        private bool shutdownScheduled;
 
         private void Start()
         {
             Instance = this;
-            if (R.Settings.Instance.AutomaticShutdown.Enabled)
-            {
-                shutdownTime = startedTime.ToUniversalTime().AddSeconds(R.Settings.Instance.AutomaticShutdown.Interval);
-                Logging.Logger.Log("This server will automatically shutdown in " + R.Settings.Instance.AutomaticShutdown.Interval + " seconds (" + shutdownTime.ToString() + " UTC)");
-            }
-            started = true;
-        }
 
-        private void checkTimerRestart()
-        {
-            try
+            if (!R.Settings.Instance.AutomaticShutdown.Enabled)
+                return;
+
+            int seconds = R.Settings.Instance.AutomaticShutdown.Interval;
+
+            var shutdownTime = DateTime.UtcNow.AddSeconds(seconds);
+
+            Logging.Logger.Log(
+                $"This server will automatically shutdown in {seconds} seconds ({shutdownTime} UTC)");
+
+            shutdownScheduled = true;
+
+            TaskDispatcher.QueueOnMainThread(() =>
             {
-                if (shutdownTime != null)
+                try
                 {
-                    if ((shutdownTime.Value - DateTime.UtcNow).TotalSeconds < 0 && !shutdown)
-                    {
-                        shutdown = true;
-                        R.Implementation.Shutdown();
-                    }
+                    R.Implementation.Shutdown();
                 }
-            }
-            catch (Exception er)
-            {
-                Logging.Logger.LogException(er);
-            }
+                catch (Exception ex)
+                {
+                    Logging.Logger.LogException(ex);
+                }
+            }, seconds);
         }
     }
 }
