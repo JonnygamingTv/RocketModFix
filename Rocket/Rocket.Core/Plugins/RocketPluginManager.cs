@@ -46,9 +46,7 @@ namespace Rocket.Core.Plugins
             {
                 AssemblyName requestedName = new AssemblyName(args.Name);
 
-                // ─────────────────────────────────────────────
-                // 1. Check already loaded assemblies FIRST
-                // ─────────────────────────────────────────────
+                // Check already loaded assemblies FIRST
                 var alreadyLoaded = AppDomain.CurrentDomain
                     .GetAssemblies()
                     .FirstOrDefault(a =>
