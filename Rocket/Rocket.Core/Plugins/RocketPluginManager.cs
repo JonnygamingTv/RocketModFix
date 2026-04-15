@@ -45,7 +45,7 @@ namespace Rocket.Core.Plugins
             try
             {
                 AssemblyName requestedName = new AssemblyName(args.Name);
-
+                /* Not necessary.
                 // Check already loaded assemblies FIRST
                 var alreadyLoaded = AppDomain.CurrentDomain
                     .GetAssemblies()
@@ -56,7 +56,7 @@ namespace Rocket.Core.Plugins
                 {
                     return alreadyLoaded;
                 }
-
+                */
                 var matchesByName = libraries.Where(lib => string.Equals(lib.Key.Name, requestedName.Name));
 
                 // Prefer exactly-matching version if possible.
@@ -155,12 +155,12 @@ namespace Rocket.Core.Plugins
                 if (!libraries.ContainsKey(pair.Key))
                 {
                     Assembly? asm = LoadAssemblyFromFile(pair.Value);
-                    if (asm != null)
+                    if (asm != null && !pluginAssemblies.Contains(asm))
                     {
                         newPlugins.Add(asm);
                         pluginAssemblies.Add(asm); // adds to /rocket plugins
+                        libraries[pair.Key] = pair.Value;
                     }
-                    libraries[pair.Key] = pair.Value;
                 }
             }
             List<Type> pluginImplemenations = RocketHelper.GetTypesFromInterface(newPlugins, "IRocketPlugin");
