@@ -129,6 +129,28 @@ namespace Rocket.Core.Plugins
             }
             plugins.Clear();
         }
+        public void LoadNewPlugins() // since we cannot hot-reload plugins, we can at least support adding new plugins LIVE.
+        {
+            Dictionary<AssemblyName, string> assembliesNow = FindAssembliesInDirectory(Environment.PluginsDirectory);
+            List<Assembly> newPlugins = new List<Assembly>();
+            foreach (KeyValuePair<AssemblyName,string> pair in assembliesNow)
+            {
+                if (!libraries.ContainsKey(pair.Key))
+                {
+                    Assembly? asm = LoadAssemblyFromFile(pair.Value);
+                    if(asm != null) newPlugins.Add(asm);
+                    libraries[pair.Key] = pair.Value;
+                }
+            }
+            List<Type> pluginImplemenations = RocketHelper.GetTypesFromInterface(newPlugins, "IRocketPlugin");
+            foreach (Type pluginType in pluginImplemenations)
+            {
+                GameObject plugin = new GameObject(pluginType.Name, pluginType);
+                DontDestroyOnLoad(plugin);
+                plugins.Add(plugin);
+            }
+            OnPluginsLoaded.TryInvoke();
+        }
 
         internal void Reload()
         {
@@ -158,7 +180,7 @@ namespace Rocket.Core.Plugins
         private static Dictionary<AssemblyName, string> FindAssembliesInDirectory(string directory)
         {
             Dictionary<AssemblyName, string> l = new Dictionary<AssemblyName, string>();
-            IEnumerable<FileInfo> libraries = new DirectoryInfo(directory).GetFiles("*.dll", SearchOption.AllDirectories);
+            IEnumerable<FileInfo> libraries = ListDirFiles(directory);
             foreach (FileInfo library in libraries)
             {
                 try
@@ -174,32 +196,42 @@ namespace Rocket.Core.Plugins
         public static List<Assembly> LoadAssembliesFromDirectory(string directory, string extension = "*.dll")
         {
             List<Assembly> assemblies = new List<Assembly>();
-            IEnumerable<FileInfo> pluginsLibraries = new DirectoryInfo(directory).GetFiles(extension, SearchOption.AllDirectories);
+            IEnumerable<FileInfo> pluginsLibraries = ListDirFiles(directory, extension);
 
             foreach (FileInfo library in pluginsLibraries)
             {
-                try
-                {
-                    Assembly assembly = Assembly.Load(File.ReadAllBytes(library.FullName)); // Load from file to support /rocket reload even if file is overwritten.
-
-                    List<Type> types = RocketHelper.GetTypesFromInterface(assembly, "IRocketPlugin").FindAll(x => !x.IsAbstract);
-
-                    if (types.Count == 1)
-                    {
-                        Logging.Logger.Log("Loading "+ assembly.GetName().Name +" from "+ assembly.Location);
-                        assemblies.Add(assembly);
-                    }
-                    else
-                    {
-                        Logging.Logger.LogError("Invalid or outdated plugin assembly: " + assembly.GetName().Name);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logging.Logger.LogError(ex, "Could not load plugin assembly: " + library.Name);
-                }
+                Assembly? assembly = LoadAssemblyFromFile(library.FullName);
+                if(assembly != null) assemblies.Add(assembly);
             }
             return assemblies;
+        }
+        public static IEnumerable<FileInfo> ListDirFiles(string dir, string ext = "*.dll")
+        {
+            return new DirectoryInfo(dir).GetFiles(ext, SearchOption.AllDirectories);
+        }
+        public static Assembly? LoadAssemblyFromFile(string file)
+        {
+            try
+            {
+                Assembly assembly = Assembly.Load(File.ReadAllBytes(file)); // Load from file to support /rocket reload even if file is overwritten.
+
+                List<Type> types = RocketHelper.GetTypesFromInterface(assembly, "IRocketPlugin").FindAll(x => !x.IsAbstract);
+
+                if (types.Count == 1)
+                {
+                    Logging.Logger.Log("Loading " + assembly.GetName().Name + " from " + assembly.Location);
+                    return assembly;
+                }
+                else
+                {
+                    Logging.Logger.LogError("Invalid or outdated plugin assembly: " + assembly.GetName().Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Logger.LogError(ex, "Could not load plugin assembly: " + file);
+            }
+            return null;
         }
     }
 }
