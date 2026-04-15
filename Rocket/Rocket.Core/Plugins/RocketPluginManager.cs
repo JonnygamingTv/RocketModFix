@@ -143,6 +143,11 @@ namespace Rocket.Core.Plugins
         }
         public void LoadNewPlugins() // since we cannot hot-reload plugins, we can at least support adding new plugins LIVE.
         {
+            foreach (KeyValuePair<AssemblyName, string> pair in FindAssembliesInDirectory(Environment.LibrariesDirectory))
+            {
+                if (!libraries.ContainsKey(pair.Key))
+                    libraries.Add(pair.Key, pair.Value);
+            }
             Dictionary<AssemblyName, string> assembliesNow = FindAssembliesInDirectory(Environment.PluginsDirectory);
             List<Assembly> newPlugins = new List<Assembly>();
             foreach (KeyValuePair<AssemblyName,string> pair in assembliesNow)
