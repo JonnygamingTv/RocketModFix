@@ -45,6 +45,20 @@ namespace Rocket.Core.Plugins
             try
             {
                 AssemblyName requestedName = new AssemblyName(args.Name);
+
+                // ─────────────────────────────────────────────
+                // 1. Check already loaded assemblies FIRST
+                // ─────────────────────────────────────────────
+                var alreadyLoaded = AppDomain.CurrentDomain
+                    .GetAssemblies()
+                    .FirstOrDefault(a =>
+                        string.Equals(a.GetName().Name, requestedName.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (alreadyLoaded != null)
+                {
+                    return alreadyLoaded;
+                }
+
                 var matchesByName = libraries.Where(lib => string.Equals(lib.Key.Name, requestedName.Name));
 
                 // Prefer exactly-matching version if possible.
