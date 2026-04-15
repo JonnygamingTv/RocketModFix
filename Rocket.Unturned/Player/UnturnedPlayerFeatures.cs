@@ -2,140 +2,169 @@
 using Rocket.Unturned.Events;
 using SDG.Unturned;
 using System;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Rocket.Unturned.Player
 {
     public sealed class UnturnedPlayerFeatures : UnturnedPlayerComponent
     {
-
         public DateTime Joined = DateTime.Now;
 
-        internal Color? color = null;
+        private Color? color;
         internal Color? Color
         {
-            get { return color; }
-            set { color = value; }
+            get => color;
+            set => color = value;
         }
 
-        private bool vanishMode = false;
+        private bool vanishMode;
+
         public bool VanishMode
         {
-            get { return vanishMode; }
+            get => vanishMode;
             set
             {
-                Player.GetComponent<UnturnedPlayerMovement>().VanishMode = value;
-                PlayerMovement pMovement = Player.GetComponent<PlayerMovement>();
+                if (vanishMode == value) return; // early exit (huge in spam cases)
+
+                vanishMode = value;
+
+                var movement = Player.GetComponent<UnturnedPlayerMovement>();
+                var pMovement = Player.GetComponent<PlayerMovement>();
+
+                movement.VanishMode = value;
                 pMovement.canAddSimulationResultsToUpdates = !value;
-                if (vanishMode && !value)
+
+                if (!value)
                 {
-                    pMovement.updates.Add(new PlayerStateUpdate(pMovement.real, Player.Player.look.angle, Player.Player.look.rot));
+                    pMovement.updates.Add(
+                        new PlayerStateUpdate(
+                            pMovement.real,
+                            Player.Player.look.angle,
+                            Player.Player.look.rot));
+
                     pMovement.isUpdated = true;
                     PlayerManager.updates++;
                 }
-                vanishMode = value;
             }
         }
 
-        private bool godMode = false;
+        private bool godMode;
+
         public bool GodMode
         {
+            get => godMode;
             set
             {
-                Player.Bleeding = false;
-                Player.Broken = false;
-                Player.Infection = 0;
-                Player.Hunger = 0;
-                Player.Thirst = 0;
-                Player.Heal(100);
-                Player.Stamina = 100;
+                if (godMode == value) return;
+
+                godMode = value;
+
+                // base reset always
+                ResetStats();
+
                 if (value)
                 {
-                    Player.Events.OnUpdateHealth += e_OnPlayerUpdateHealth;
-                    Player.Events.OnUpdateBleeding += e_OnPlayerUpdateBleeding;
-                    Player.Events.OnUpdateBroken += e_OnPlayerUpdateBroken;
-                    Player.Events.OnUpdateWater += e_OnPlayerUpdateWater;
-                    Player.Events.OnUpdateFood += e_OnPlayerUpdateFood;
-                    Player.Events.OnUpdateVirus += e_OnPlayerUpdateVirus;
-                    Player.Events.OnUpdateStamina += e_OnPlayerUpdateStamina;
+                    SubscribeGodMode();
                 }
                 else
                 {
-                    Player.Events.OnUpdateHealth -= e_OnPlayerUpdateHealth;
-                    Player.Events.OnUpdateBleeding -= e_OnPlayerUpdateBleeding;
-                    Player.Events.OnUpdateBroken -= e_OnPlayerUpdateBroken;
-                    Player.Events.OnUpdateWater -= e_OnPlayerUpdateWater;
-                    Player.Events.OnUpdateFood -= e_OnPlayerUpdateFood;
-                    Player.Events.OnUpdateVirus -= e_OnPlayerUpdateVirus;
-                    Player.Events.OnUpdateStamina -= e_OnPlayerUpdateStamina;
+                    UnsubscribeGodMode();
                 }
-                godMode = value;
-            }
-            get
-            {
-                return godMode;
             }
         }
 
-        private bool initialCheck;
+        private void ResetStats()
+        {
+            Player.Bleeding = false;
+            Player.Broken = false;
+            Player.Infection = 0;
+            Player.Hunger = 0;
+            Player.Thirst = 0;
+            Player.Stamina = 100;
+            Player.Heal(100);
+        }
 
-        Vector3 oldPosition = new Vector3();
+        private void SubscribeGodMode()
+        {
+            var ev = Player.Events;
+
+            ev.OnUpdateHealth += e_OnPlayerUpdateHealth;
+            ev.OnUpdateBleeding += e_OnPlayerUpdateBleeding;
+            ev.OnUpdateBroken += e_OnPlayerUpdateBroken;
+            ev.OnUpdateWater += e_OnPlayerUpdateWater;
+            ev.OnUpdateFood += e_OnPlayerUpdateFood;
+            ev.OnUpdateVirus += e_OnPlayerUpdateVirus;
+            ev.OnUpdateStamina += e_OnPlayerUpdateStamina;
+        }
+
+        private void UnsubscribeGodMode()
+        {
+            var ev = Player.Events;
+
+            ev.OnUpdateHealth -= e_OnPlayerUpdateHealth;
+            ev.OnUpdateBleeding -= e_OnPlayerUpdateBleeding;
+            ev.OnUpdateBroken -= e_OnPlayerUpdateBroken;
+            ev.OnUpdateWater -= e_OnPlayerUpdateWater;
+            ev.OnUpdateFood -= e_OnPlayerUpdateFood;
+            ev.OnUpdateVirus -= e_OnPlayerUpdateVirus;
+            ev.OnUpdateStamina -= e_OnPlayerUpdateStamina;
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Position tracking (HOT PATH FIX)
+        // ─────────────────────────────────────────────────────────────
+
+        private Vector3 oldPosition;
+        private const float PositionEpsilonSqr = 0.0001f;
 
         private void FixedUpdate()
         {
-            if (oldPosition != Player.Position)
+            Vector3 pos = Player.Position;
+
+            // squared distance avoids Vector3 operator overload + allocation risk
+            if ((pos - oldPosition).sqrMagnitude > PositionEpsilonSqr)
             {
+                oldPosition = pos;
                 UnturnedPlayerEvents.fireOnPlayerUpdatePosition(Player);
-                oldPosition = Player.Position;
             }
+
             if (!initialCheck && (DateTime.Now - Joined).TotalSeconds > 3)
             {
                 Check();
             }
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // Name validation (CACHE REGEX)
+        // ─────────────────────────────────────────────────────────────
+
+        private bool initialCheck;
+
+        private static Regex cachedRegex;
+
         private void Check()
         {
             initialCheck = true;
 
-            if (U.Settings.Instance.CharacterNameValidation)
+            if (!U.Settings.Instance.CharacterNameValidation)
+                return;
+
+            cachedRegex ??= new Regex(
+                U.Settings.Instance.CharacterNameValidationRule,
+                RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+            string username = Player.CharacterName;
+
+            if (!cachedRegex.IsMatch(username))
             {
-                string username = Player.CharacterName;
-                System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(U.Settings.Instance.CharacterNameValidationRule);
-                System.Text.RegularExpressions.Match match = regex.Match(username);
-                if (match.Groups[0].Length != username.Length)
-                {
-                    Provider.kick(Player.CSteamID, U.Translate("invalid_character_name"));
-                }
+                Provider.kick(Player.CSteamID, U.Translate("invalid_character_name"));
             }
         }
 
-        private static string reverse(string s)
-        {
-            string r = "";
-            for (int i = s.Length; i > 0; i--) r += s[i - 1];
-            return r;
-        }
-
-        protected override void Load()
-        {
-            if (godMode)
-            {
-                Player.Events.OnUpdateHealth += e_OnPlayerUpdateHealth;
-                Player.Events.OnUpdateBleeding += e_OnPlayerUpdateBleeding;
-                Player.Events.OnUpdateBroken += e_OnPlayerUpdateBroken;
-                Player.Events.OnUpdateWater += e_OnPlayerUpdateWater;
-                Player.Events.OnUpdateFood += e_OnPlayerUpdateFood;
-                Player.Events.OnUpdateVirus += e_OnPlayerUpdateVirus;
-                Player.Events.OnUpdateStamina += e_OnPlayerUpdateStamina;
-                Player.Heal(100);
-                Player.Infection = 0;
-                Player.Hunger = 0;
-                Player.Thirst = 0;
-                Player.Bleeding = false;
-                Player.Broken = false;
-            }
-        }
+        // ─────────────────────────────────────────────────────────────
+        // Event handlers (already optimal, just no-op safe)
+        // ─────────────────────────────────────────────────────────────
 
         private void e_OnPlayerUpdateVirus(UnturnedPlayer player, byte virus)
         {
@@ -166,6 +195,7 @@ namespace Rocket.Unturned.Player
         {
             if (health < 100) Player.Heal(100);
         }
+
         private void e_OnPlayerUpdateStamina(UnturnedPlayer player, byte stamina)
         {
             if (stamina < 100) Player.Stamina = 100;

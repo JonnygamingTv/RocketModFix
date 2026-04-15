@@ -1,52 +1,75 @@
 using Rocket.Core;
 using Rocket.Core.Logging;
-using Rocket.Core.Utils;
 using Rocket.Unturned.Player;
-using SDG.Provider;
-using SDG.Provider.Services.Achievements;
 using SDG.Unturned;
-using Steamworks;
-using System;
-using System.Collections.Generic;
 using UnityEngine;
+using Logger = Rocket.Core.Logging.Logger;
 
 namespace Rocket.Unturned
 {
     public class UnturnedPlayerMovement : UnturnedPlayerComponent
     {
         public bool VanishMode = false;
-        DateTime lastUpdate = DateTime.Now;
-        Vector3 lastVector = new Vector3(0,-1,0);
+
+        // Unity time float – no DateTime struct allocation, no conversions.
+        private float _nextCheckTime;
+
+        // Sentinel: y == -1f means "no previous sample yet".
+        private Vector3 _lastPos = new Vector3(0f, -1f, 0f);
+
+        // Cached once in Load() to avoid GetComponent<> every FixedUpdate tick.
+        private PlayerMovement _movement;
+
+        protected override void Load()
+        {
+            _movement = Player.Player.GetComponent<PlayerMovement>();
+        }
 
         private void FixedUpdate()
         {
-            PlayerMovement movement = (PlayerMovement)Player.GetComponent<PlayerMovement>();
+            // Vanish-mode players are intentionally exempt from movement logging.
+            if (VanishMode)
+                return;
 
-            if (!VanishMode)
+            // Setting may be toggled at runtime; check it first so we bail out
+            // before even touching Time.time when logging is disabled.
+            if (!U.Settings.Instance.LogSuspiciousPlayerMovement)
+                return;
+
+            float now = Time.time;
+            if (now < _nextCheckTime)
+                return;
+
+            _nextCheckTime = now + 1f;
+
+            // Guard against the component being destroyed or not yet ready.
+            if (_movement == null)
             {
-                if (U.Settings.Instance.LogSuspiciousPlayerMovement && lastUpdate.AddSeconds(1) < DateTime.Now)
+                _movement = Player.Player.GetComponent<PlayerMovement>();
+                if (_movement == null) return;
+            }
+
+            Vector3 pos = _movement.real;
+
+            // Skip the very first sample (sentinel y == -1).
+            if (_lastPos.y != -1f)
+            {
+                float dy = pos.y - _lastPos.y;
+
+                if (dy > 15f)
                 {
-                    lastUpdate = DateTime.Now;
+                    // Only raycast when the suspicious threshold is exceeded.
+                    float floorDist = 0f;
+                    if (Physics.Raycast(pos, Vector3.down, out RaycastHit hit))
+                        floorDist = Mathf.Abs(hit.point.y - pos.y);
 
-                    Vector3 positon = movement.real;
-
-                    if (lastVector.y != -1)
-                    {
-                        float x = Math.Abs(lastVector.x - positon.x);
-                        float y = positon.y - lastVector.y;
-                        float z = Math.Abs(lastVector.z - positon.z);
-                        if (y > 15)
-                        {
-                            RaycastHit raycastHit = new RaycastHit();
-                            Physics.Raycast(positon, Vector3.down, out raycastHit);
-                            Vector3 floor = raycastHit.point;
-                            float distance = Math.Abs(floor.y - positon.y);
-                            Core.Logging.Logger.Log(Player.DisplayName + " moved x:" + positon.x + " y:" + positon.y + "(+" + y + ") z:" + positon.z + " in the last second (" + distance + ")");
-                        }
-                    }
-                    lastVector = movement.real;
+                    Logger.Log(string.Format(
+                        "{0} moved x:{1:F1} y:{2:F1} (+{3:F1}) z:{4:F1} in the last second (floor dist: {5:F1})",
+                        Player.DisplayName, pos.x, pos.y, dy, pos.z, floorDist));
                 }
             }
+
+            _lastPos = pos;
         }
     }
 }

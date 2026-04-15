@@ -23,17 +23,15 @@ namespace Rocket.Unturned.Permissions
         internal static bool CheckPermissions(SteamPlayer caller, string permission)
         {
             UnturnedPlayer player = caller.ToUnturnedPlayer();
-
             Regex r = new Regex("^\\/\\S*");
-            string requestedCommand = r.Match(permission.ToLower()).Value.TrimStart('/').ToLower();
-
-            IRocketCommand command = R.Commands.GetCommand(requestedCommand);
-            double cooldown = R.Commands.GetCooldown(player, command);
+            string requestedCommand = r.Match(permission.ToLower()).Value.TrimStart('/');
+            IRocketCommand command = R.Commands.GetCommand(requestedCommand); // GetCommand ignoreCase
 
             if (command != null)
             {
                 if (R.Permissions.HasPermission(player, command))
                 {
+                    double cooldown = R.Commands.GetCooldown(player, command);
                     if (cooldown > 0)
                     {
                         UnturnedChat.Say(player, R.Translate("command_cooldown", cooldown), Color.red);
@@ -53,7 +51,37 @@ namespace Rocket.Unturned.Permissions
                 return false;
             }
         }
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        internal static bool CheckPermissions2(UnturnedPlayer player, string permission)
+        {
+            Regex r = new Regex("^\\/\\S*");
+            string requestedCommand = r.Match(permission.ToLower()).Value.TrimStart('/');
+            IRocketCommand command = R.Commands.GetCommand(requestedCommand); // GetCommand ignoreCase
 
+            if (command != null)
+            {
+                if (R.Permissions.HasPermission(player, command))
+                {
+                    double cooldown = R.Commands.GetCooldown(player, command);
+                    if (cooldown > 0)
+                    {
+                        UnturnedChat.Say(player, R.Translate("command_cooldown", cooldown), Color.red);
+                        return false;
+                    }
+                    return true;
+                }
+                else
+                {
+                    UnturnedChat.Say(player, R.Translate("command_no_permission"), Color.red);
+                    return false;
+                }
+            }
+            else
+            {
+                UnturnedChat.Say(player, U.Translate("command_not_found"), Color.red);
+                return false;
+            }
+        }
         internal static bool CheckValid(ValidateAuthTicketResponse_t r)
         {
             ESteamRejection? reason = null;
