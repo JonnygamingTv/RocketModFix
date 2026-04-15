@@ -138,7 +138,11 @@ namespace Rocket.Core.Plugins
                 if (!libraries.ContainsKey(pair.Key))
                 {
                     Assembly? asm = LoadAssemblyFromFile(pair.Value);
-                    if(asm != null) newPlugins.Add(asm);
+                    if (asm != null)
+                    {
+                        newPlugins.Add(asm);
+                        pluginAssemblies.Add(asm); // adds to /rocket plugins
+                    }
                     libraries[pair.Key] = pair.Value;
                 }
             }
