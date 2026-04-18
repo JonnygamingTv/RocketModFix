@@ -23,8 +23,9 @@ namespace Rocket.Core.Plugins
         /// <summary>
         /// Maps assembly name to .dll file path.
         /// </summary>
-        private Dictionary<AssemblyName, string> libraries = new Dictionary<AssemblyName, string>(); // It appears AssemblyName is an unstable key
-        private Dictionary<string, string> libs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<AssemblyName, string> libraries = new Dictionary<AssemblyName, string>(); // It appears AssemblyName is an unstable key. But not added by me.
+        private Dictionary<string, string> libs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // new: {name.name = library.FullName}
+        private static readonly Dictionary<string, IRocketPlugin> pluginsByAssembly = new(StringComparer.OrdinalIgnoreCase);
 
         public List<IRocketPlugin> GetPlugins()
         {
@@ -33,6 +34,8 @@ namespace Rocket.Core.Plugins
 
         public IRocketPlugin GetPlugin(Assembly assembly)
         {
+            if(pluginsByAssembly.TryGetValue(assembly.GetName().Name, out var plugin))
+                return plugin; // prefer not touching Unity
             return plugins.Select(g => g.GetComponent<IRocketPlugin>()).Where(p => p != null && p.GetType().Assembly == assembly).FirstOrDefault();
         }
 
@@ -136,9 +139,20 @@ namespace Rocket.Core.Plugins
             {
                 GameObject plugin = new GameObject(pluginType.Name, pluginType);
                 DontDestroyOnLoad(plugin);
-                plugins.Add(plugin);
+                AddPlugin(plugin);
             }
             OnPluginsLoaded.TryInvoke();
+        }
+        private void AddPlugin(GameObject plugin)
+        {
+            plugins.Add(plugin);
+            var pluginComponent = plugin.GetComponent<IRocketPlugin>();
+
+            if (pluginComponent != null)
+            {
+                string asmName = pluginComponent.GetType().Assembly.GetName().Name;
+                pluginsByAssembly[asmName] = pluginComponent;
+            }
         }
 
         private void unloadPlugins() {
@@ -147,6 +161,7 @@ namespace Rocket.Core.Plugins
                 Destroy(plugins[i-1]);
             }
             plugins.Clear();
+            pluginsByAssembly.Clear();
         }
         public void LoadNewPlugins() // since we cannot hot-reload plugins, we can at least support adding new plugins LIVE.
         {
@@ -182,7 +197,7 @@ namespace Rocket.Core.Plugins
             {
                 GameObject plugin = new GameObject(pluginType.Name, pluginType);
                 DontDestroyOnLoad(plugin);
-                plugins.Add(plugin);
+                AddPlugin(plugin);
             }
             OnPluginsLoaded.TryInvoke();
         }
