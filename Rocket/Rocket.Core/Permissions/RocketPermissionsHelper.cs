@@ -189,7 +189,7 @@ namespace Rocket.Core.Permissions
             {
                 PlayerGroupCache.Remove(mem); // reset cache
             }
-            permissions.Save();
+            SaveAsync();
             return RocketPermissionsProviderResult.Success;
         }
 
