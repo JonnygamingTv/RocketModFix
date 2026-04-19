@@ -28,7 +28,7 @@ namespace Rocket.Core.Utils
 
         public struct DelayedQueueItem
         {
-            public float time; // originally float
+            public float time; // Remains float for compatibility
             public Action action;
         }
 
@@ -51,7 +51,7 @@ namespace Rocket.Core.Utils
             }
 
             // THREAD-SAFE TIME (no Unity API)
-            float execTime = (float)_watch.Elapsed.TotalSeconds + delay;
+            float execTime = (float) _watch.Elapsed.TotalSeconds + delay;
 
             lock (_heap)
             {

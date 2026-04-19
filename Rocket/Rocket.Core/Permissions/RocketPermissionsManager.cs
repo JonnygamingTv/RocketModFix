@@ -70,6 +70,7 @@ namespace Rocket.Core.Permissions
                 }
                 helper.permissions.Instance.GroupsDict[_Group.Id] = _Group;
             }
+            helper.PlayerGroupCache.Clear();
         }
         
         //public void ManualLoad() { Awake(); }
@@ -99,6 +100,7 @@ namespace Rocket.Core.Permissions
 
         public bool HasPermission(IRocketPlayer player, List<string> permissions)
         {
+            if (permissions.Count == 1) return HasPermissionFast(player, permissions[0]);
             return helper.HasPermission(player, permissions);
         }
         public bool HasPermissionFast(IRocketPlayer player, string permission)

@@ -10,7 +10,7 @@ namespace Rocket.Core.Permissions
     internal class RocketPermissionsHelper
     {
         internal Asset<RocketPermissions> permissions;
-
+        public Dictionary<string, Dictionary<string, Permission>> PlayerGroupCache = new(StringComparer.OrdinalIgnoreCase);
         public RocketPermissionsHelper(Asset<RocketPermissions> permissions)
         {
             this.permissions = permissions;
@@ -130,6 +130,7 @@ namespace Rocket.Core.Permissions
 
             g.Members.Remove(playerId);
             g._Members.Remove(playerId);
+            PlayerGroupCache.Remove(playerId); // reset cache
             SaveAsync(); // SaveGroup(g);
             return RocketPermissionsProviderResult.Success;
         }
@@ -148,6 +149,7 @@ namespace Rocket.Core.Permissions
 
             g.Members.Add(playerId);
             g._Members.Add(playerId);
+            PlayerGroupCache.Remove(playerId); // reset cache
             SaveAsync(); // SaveGroup(g);
             return RocketPermissionsProviderResult.Success;
         }
@@ -157,9 +159,13 @@ namespace Rocket.Core.Permissions
             RocketPermissionsGroup g = GetGroup(groupId);
             if (g == null) return RocketPermissionsProviderResult.GroupNotFound;
 
+            foreach(var mem in g.Members)
+            {
+                PlayerGroupCache.Remove(mem); // reset cache
+            }
             permissions.Instance.Groups.Remove(g);
             permissions.Instance.GroupsDict.Remove(groupId);
-            permissions.Save();
+            SaveAsync();
             return RocketPermissionsProviderResult.Success;
         }
 
@@ -169,7 +175,7 @@ namespace Rocket.Core.Permissions
             if (i < 0) return RocketPermissionsProviderResult.GroupNotFound;
             permissions.Instance.Groups[i] = group;
             permissions.Instance.GroupsDict[group.Id] = group;
-            permissions.Save();
+            SaveAsync();
             return RocketPermissionsProviderResult.Success;
         }
 
@@ -179,6 +185,10 @@ namespace Rocket.Core.Permissions
             if (i != -1) return RocketPermissionsProviderResult.DuplicateEntry;
             permissions.Instance.Groups.Add(group);
             permissions.Instance.GroupsDict[group.Id] = group;
+            foreach (var mem in group.Members)
+            {
+                PlayerGroupCache.Remove(mem); // reset cache
+            }
             permissions.Save();
             return RocketPermissionsProviderResult.Success;
         }
@@ -247,55 +257,64 @@ namespace Rocket.Core.Permissions
         }
         public HashSet<Permission> GetPermissionHash(string playerId)
         {
-            Dictionary<string, Permission> result = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
-
-            List<RocketPermissionsGroup> playerGroups = this.GetGroups(playerId, true);
-            playerGroups.Reverse(); // because we need desc ordering
-
-            playerGroups.ForEach(group =>
+            if (!PlayerGroupCache.TryGetValue(playerId, out var result))
             {
-                group.Permissions.ForEach(permission =>
+                result = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
+
+                List<RocketPermissionsGroup> playerGroups = this.GetGroups(playerId, true);
+                playerGroups.Reverse(); // because we need desc ordering
+
+                playerGroups.ForEach(group =>
                 {
-
-                    if (permission.Name.StartsWith("-"))
+                    group.Permissions.ForEach(permission =>
                     {
-                        string perm_key = permission.Name.Substring(1);
-                        if (result.ContainsKey(perm_key))
-                            result.Remove(perm_key);
-                    }
-                    else
-                    {
-                        result[permission.Name] = permission;
-                    }
 
+                        if (permission.Name.StartsWith("-"))
+                        {
+                            string perm_key = permission.Name.Substring(1);
+                            if (result.ContainsKey(perm_key))
+                                result.Remove(perm_key);
+                        }
+                        else
+                        {
+                            result[permission.Name] = permission;
+                        }
+
+                    });
                 });
-            });
+                PlayerGroupCache[playerId] = result;
+            }
+
             HashSet<Permission> perms = new HashSet<Permission>();
             foreach (string Perm in result.Keys) perms.Add(result[Perm]);
             return perms;
         }
         public Dictionary<string, Permission> GetPermissionDict(string playerId)
         {
-            Dictionary<string, Permission> result = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
-
-            List<RocketPermissionsGroup> playerGroups = this.GetGroups(playerId, true);
-            playerGroups.Reverse(); // because we need desc ordering
-
-            playerGroups.ForEach(group =>
+            if (!PlayerGroupCache.TryGetValue(playerId, out var result))
             {
-                group.Permissions.ForEach(permission =>
+                result = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
+
+                List<RocketPermissionsGroup> playerGroups = this.GetGroups(playerId, true);
+                playerGroups.Reverse(); // because we need desc ordering
+
+                playerGroups.ForEach(group =>
                 {
-                    if (permission.Name.StartsWith("-"))
+                    group.Permissions.ForEach(permission =>
                     {
-                        string perm_key = permission.Name.Substring(1);
-                        result.Remove(perm_key); // faster than removeAll
-                    }
-                    else
-                    {
-                        result[permission.Name] = permission;
-                    }
+                        if (permission.Name.StartsWith("-"))
+                        {
+                            string perm_key = permission.Name.Substring(1);
+                            result.Remove(perm_key); // faster than removeAll
+                        }
+                        else
+                        {
+                            result[permission.Name] = permission;
+                        }
+                    });
                 });
-            });
+                PlayerGroupCache[playerId] = result;
+            }
             return result;
         }
 
