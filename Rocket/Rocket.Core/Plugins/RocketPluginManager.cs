@@ -18,7 +18,7 @@ namespace Rocket.Core.Plugins
 
         private static List<Assembly> pluginAssemblies;
         private static List<GameObject> plugins = new List<GameObject>();
-        internal static List<IRocketPlugin> Plugins { get { return plugins.Select(g => g.GetComponent<IRocketPlugin>()).Where(p => p != null).ToList<IRocketPlugin>(); } }
+        internal static List<IRocketPlugin> Plugins { get { return new List<IRocketPlugin>(pluginsByName.Values); } }
 
         /// <summary>
         /// Maps assembly name to .dll file path.
@@ -26,6 +26,7 @@ namespace Rocket.Core.Plugins
         private Dictionary<AssemblyName, string> libraries = new Dictionary<AssemblyName, string>(); // It appears AssemblyName is an unstable key. But not added by me.
         private Dictionary<string, string> libs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // new: {name.name = library.FullName}
         private static readonly Dictionary<string, IRocketPlugin> pluginsByAssembly = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, IRocketPlugin> pluginsByName = new Dictionary<string, IRocketPlugin>(StringComparer.OrdinalIgnoreCase);
 
         public List<IRocketPlugin> GetPlugins()
         {
@@ -34,13 +35,15 @@ namespace Rocket.Core.Plugins
 
         public IRocketPlugin GetPlugin(Assembly assembly)
         {
-            if(pluginsByAssembly.TryGetValue(assembly.GetName().Name, out var plugin))
+            if(pluginsByAssembly.TryGetValue(assembly.GetName().Name, out IRocketPlugin plugin))
                 return plugin; // prefer not touching Unity
             return plugins.Select(g => g.GetComponent<IRocketPlugin>()).Where(p => p != null && p.GetType().Assembly == assembly).FirstOrDefault();
         }
 
         public IRocketPlugin GetPlugin(string name)
         {
+            if (pluginsByAssembly.TryGetValue(name, out IRocketPlugin plugin))
+                return plugin; // prefer not touching Unity
             return plugins.Select(g => g.GetComponent<IRocketPlugin>()).Where(p => p != null && ((IRocketPlugin)p).Name == name).FirstOrDefault();
         }
 
@@ -152,6 +155,7 @@ namespace Rocket.Core.Plugins
             {
                 string asmName = pluginComponent.GetType().Assembly.GetName().Name;
                 pluginsByAssembly[asmName] = pluginComponent;
+                pluginsByName[pluginComponent.Name] = pluginComponent;
             }
         }
 
@@ -162,6 +166,7 @@ namespace Rocket.Core.Plugins
             }
             plugins.Clear();
             pluginsByAssembly.Clear();
+            pluginsByName.Clear();
         }
         public void LoadNewPlugins() // since we cannot hot-reload plugins, we can at least support adding new plugins LIVE.
         {
