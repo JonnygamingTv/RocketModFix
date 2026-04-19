@@ -24,7 +24,7 @@ namespace Rocket.API
 
         public static List<Permission> GetPermissions(this IRocketPermissionsProvider rocketPermissionProvider, IRocketPlayer player, string permission)
         {
-            return rocketPermissionProvider.GetPermissions(player, new List<string>() { permission });
+            return rocketPermissionProvider.GetPermissions(player, new List<string>(1) { permission });
         }
 
         public static List<Permission> GetPermissions(this IRocketPermissionsProvider rocketPermissionProvider, IRocketPlayer player, IRocketCommand command)
@@ -55,8 +55,5 @@ namespace Rocket.API
         RocketPermissionsProviderResult DeleteGroup(string groupId);
 
         void Reload();
-        /*
-        void ManualLoad();
-        System.Collections.IEnumerator ManualUpdate();*/
     }
 }
