@@ -82,13 +82,12 @@ namespace Rocket.Core.Steam
             string field = "unknown";
             try
             {
-                string xml;
-                using (var wc = new TimedWebClient())
-                    xml = wc.DownloadString(
-                        "http://steamcommunity.com/profiles/" + SteamID64 + "?xml=1");
-
                 XmlDocument doc = new XmlDocument();
-                doc.LoadXml(xml);
+                using (var wc = new TimedWebClient())
+                using (var stream = wc.OpenRead("http://steamcommunity.com/profiles/" + SteamID64 + "?xml=1"))
+                {
+                    doc.Load(stream);
+                }
 
                 XmlElement profile = doc["profile"];
                 if (profile == null)
