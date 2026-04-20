@@ -2,6 +2,7 @@
 using Rocket.API.Serialisation;
 using Rocket.Core.Assets;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,7 +11,7 @@ namespace Rocket.Core.Permissions
     internal class RocketPermissionsHelper
     {
         internal Asset<RocketPermissions> permissions;
-        public Dictionary<string, Dictionary<string, Permission>> PlayerGroupCache = new(StringComparer.OrdinalIgnoreCase);
+        public ConcurrentDictionary<string, Dictionary<string, Permission>> PlayerGroupCache = new(StringComparer.OrdinalIgnoreCase);
         public RocketPermissionsHelper(Asset<RocketPermissions> permissions)
         {
             this.permissions = permissions;
@@ -62,6 +63,8 @@ namespace Rocket.Core.Permissions
         {
             if (player.IsAdmin) { return true; }
 
+            return this.HasPermissionFast(player.Id, requestedPermissions);
+
             List<Permission> applyingPermissions = this.GetPermissions(player, requestedPermissions);
 
             return applyingPermissions.Count != 0;
@@ -84,6 +87,8 @@ namespace Rocket.Core.Permissions
         /// <returns></returns>
         public bool HasPermission(string playerId, List<string> requestedPermissions)
         {
+            return this.HasPermissionFast(playerId, requestedPermissions);
+
             List<Permission> applyingPermissions = this.GetPermissions(playerId, requestedPermissions);
 
             return applyingPermissions.Count != 0;
@@ -94,6 +99,64 @@ namespace Rocket.Core.Permissions
 
             return applyingPermissions.Count != 0;
         }
+        public bool HasPermissionFast(string playerId, string permission) // Used where possible
+        {
+            var playerPermissions = this.GetPermissionDict(playerId);
+
+            if (playerPermissions.ContainsKey("*"))
+                return true;
+
+            if (playerPermissions.ContainsKey(permission))
+                return true;
+
+            foreach (var kv in playerPermissions) // Wildcards
+            {
+                if (!kv.Key.EndsWith(".*", StringComparison.Ordinal))
+                    continue;
+
+                var basePerm = kv.Key.Substring(0, kv.Key.Length - 2);
+
+                if (permission.Length > basePerm.Length &&
+    permission.StartsWith(basePerm, StringComparison.OrdinalIgnoreCase) &&
+    permission[basePerm.Length] == '.')
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        public bool HasPermissionFast(string playerId, List<string> permissions) // Used where it checks multiple strings
+        {
+            var playerPermissions = this.GetPermissionDict(playerId);
+
+            if (playerPermissions.ContainsKey("*"))
+                return true;
+
+            for (int i = 0; i < permissions.Count; i++)
+            {
+                string permission = permissions[i];
+                if (playerPermissions.ContainsKey(permission))
+                    return true;
+
+                foreach (var kv in playerPermissions)
+                {
+                    if (!kv.Key.EndsWith(".*", StringComparison.Ordinal))
+                        continue;
+
+                    var basePerm = kv.Key.Substring(0, kv.Key.Length - 2);
+
+                    if (permission.Length > basePerm.Length &&
+    permission.StartsWith(basePerm, StringComparison.OrdinalIgnoreCase) &&
+    permission[basePerm.Length] == '.')
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private static bool _saveInProgress;
         private static System.Threading.Timer _timer;
         public void SaveAsync()
@@ -130,7 +193,7 @@ namespace Rocket.Core.Permissions
 
             g.Members.Remove(playerId);
             g._Members.Remove(playerId);
-            PlayerGroupCache.Remove(playerId); // reset cache
+            PlayerGroupCache.TryRemove(playerId, out _); // reset cache
             SaveAsync(); // SaveGroup(g);
             return RocketPermissionsProviderResult.Success;
         }
@@ -149,7 +212,7 @@ namespace Rocket.Core.Permissions
 
             g.Members.Add(playerId);
             g._Members.Add(playerId);
-            PlayerGroupCache.Remove(playerId); // reset cache
+            PlayerGroupCache.TryRemove(playerId, out _); // reset cache
             SaveAsync(); // SaveGroup(g);
             return RocketPermissionsProviderResult.Success;
         }
@@ -161,7 +224,7 @@ namespace Rocket.Core.Permissions
 
             foreach(var mem in g.Members)
             {
-                PlayerGroupCache.Remove(mem); // reset cache
+                PlayerGroupCache.TryRemove(mem, out _); // reset cache
             }
             permissions.Instance.Groups.Remove(g);
             permissions.Instance.GroupsDict.Remove(groupId);
@@ -187,7 +250,7 @@ namespace Rocket.Core.Permissions
             permissions.Instance.GroupsDict[group.Id] = group;
             foreach (var mem in group.Members)
             {
-                PlayerGroupCache.Remove(mem); // reset cache
+                PlayerGroupCache.TryRemove(mem, out _); // reset cache
             }
             SaveAsync();
             return RocketPermissionsProviderResult.Success;
