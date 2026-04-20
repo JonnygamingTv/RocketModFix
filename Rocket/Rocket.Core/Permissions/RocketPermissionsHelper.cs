@@ -301,8 +301,8 @@ namespace Rocket.Core.Permissions
         {
             var result = this.GetPermissionDict(playerId);
 
-            HashSet<Permission> perms = new HashSet<Permission>(); // (result.Values) seemingly breaks. But, may or may not work
-            foreach (string Perm in result.Keys) perms.Add(result[Perm]);
+            HashSet<Permission> perms = new HashSet<Permission>(); // (result.Values) seemingly breaks (duplicates?). But, may or may not work
+            foreach(Permission Perm in result.Values) perms.Add(Perm);
             return perms;
         }
         public Dictionary<string, Permission> GetPermissionDict(string playerId)

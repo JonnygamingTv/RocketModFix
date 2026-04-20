@@ -18,9 +18,11 @@ namespace Rocket.Core.Commands
     public class RocketCommandManager : MonoBehaviour
     {
         private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
+        [Obsolete("commandsDict is more performant")]
         private readonly List<RegisteredRocketCommand> commands = new List<RegisteredRocketCommand>();
         private readonly Dictionary<string, RegisteredRocketCommand> commandsDict = new Dictionary<string, RegisteredRocketCommand>(StringComparer.OrdinalIgnoreCase);
         internal Dictionary<string, RocketCommandCooldown> cooldown = new Dictionary<string, RocketCommandCooldown>(StringComparer.OrdinalIgnoreCase);
+        [Obsolete("commandsDict is more performant")]
         public ReadOnlyCollection<RegisteredRocketCommand> Commands { get; internal set; }
         private XMLFileAsset<RocketCommands> commandMappings;
 
@@ -156,7 +158,6 @@ namespace Rocket.Core.Commands
             if (alias != null) name = alias;
             string className = getCommandIdentity(command,name);
 
-
             //Add CommandMapping if not already existing
             if(commandMappings.Instance.CommandMappings.Where(m => m.Class == className && m.Name == name).FirstOrDefault() == null){
                 commandMappings.Instance.CommandMappings.Add(new CommandMapping(name,className,true,priority));
@@ -218,13 +219,13 @@ namespace Rocket.Core.Commands
             double timeSinceExecution = (DateTime.Now - c.CommandRequested).TotalSeconds;
             if (c.ApplyingPermission.Cooldown <= timeSinceExecution)
             {
-                //Cooldown has it expired
+                //Cooldown has expired
                 cooldown.Remove(key);
                 return -1;
             }
             else
             {
-                return  c.ApplyingPermission.Cooldown - (uint)timeSinceExecution;
+                return c.ApplyingPermission.Cooldown - (uint)timeSinceExecution;
             }
         }
 
@@ -251,82 +252,144 @@ namespace Rocket.Core.Commands
             }
         }
 
-        public bool Execute(IRocketPlayer player, string command)
-        {
-            command = command.TrimStart('/');
-            string[] commandParts = Regex.Matches(command, @"[\""](.+?)[\""]|([^ ]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture).Cast<Match>().Select(m => m.Value.Trim('"').Trim()).ToArray();
+        private static readonly char[] _spaceSeparator = { ' ' };
 
-            if (commandParts.Length != 0)
+        /// <summary>Regex replacement for significantly better performance</summary>
+        private static string[] ParseCommand(string input)
+        {
+            int len = input.Length;
+
+            // Fast path: no quotes — the overwhelming majority of commands
+            if (input.IndexOf('"') == -1)
+                return input.Split(_spaceSeparator, StringSplitOptions.RemoveEmptyEntries);
+
+            // Slow path: quoted segments (e.g. /kick player "get out")
+            var result = new List<string>(8);
+            int i = 0;
+
+            while (i < len)
             {
-                name = commandParts[0];
-                string[] parameters = commandParts.Skip(1).ToArray();
-                if (player == null) player = new ConsolePlayer();
-                IRocketCommand rocketCommand = GetCommand(name);
-                double cooldown = GetCooldown(player, rocketCommand);
-                if (rocketCommand != null)
+                while (i < len && input[i] == ' ') i++;
+                if (i >= len) break;
+
+                if (input[i] == '"')
                 {
-                    if (rocketCommand.AllowedCaller == AllowedCaller.Player && player is ConsolePlayer)
-                    {
-                        Logging.Logger.Log("This command can't be called from console");
-                        return false;
-                    }
-                    if (rocketCommand.AllowedCaller == AllowedCaller.Console && !(player is ConsolePlayer))
-                    {
-                        Logging.Logger.Log("This command can only be called from console");
-                        return false;
-                    }
-                    if(cooldown != -1)
-                    {
-                        Logging.Logger.Log("This command is still on cooldown");
-                        return false;
-                    }
-                    try
-                    {
-                        bool cancelCommand = false;
-                        if (OnExecuteCommand != null)
-                        {
-                            foreach (var handler in OnExecuteCommand.GetInvocationList().Cast<ExecuteCommand>())
-                            {
-                                try
-                                {
-                                    handler(player, rocketCommand, ref cancelCommand);
-                                }
-                                catch (Exception ex)
-                                {
-                                    Logging.Logger.LogException(ex);
-                                }
-                            }
-                        }
-                        if (!cancelCommand)
-                        {
-                            try
-                            {
-                                rocketCommand.Execute(player, parameters);
-                                if (!player.HasPermission("*")) { SetCooldown(player, rocketCommand); }
-                            }
-                            catch (NoPermissionsForCommandException ex)
-                            {
-                                Logging.Logger.LogWarning(ex.Message);
-                            }
-                            catch (WrongUsageOfCommandException)
-                            {
-                                //
-                            }
-                            catch (Exception)
-                            {
-                                throw;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logging.Logger.LogError("An error occured while executing " + rocketCommand.Name + " [" + String.Join(", ", parameters) + "]: " + ex.ToString());
-                    }
-                    return true;
+                    i++;
+                    int start = i;
+                    while (i < len && input[i] != '"') i++;
+                    result.Add(input.Substring(start, i - start));
+                    if (i < len) i++;
+                }
+                else
+                {
+                    int start = i;
+                    while (i < len && input[i] != ' ') i++;
+                    result.Add(input.Substring(start, i - start));
                 }
             }
 
-            return false;
+            return result.ToArray();
+        }
+
+        public bool Execute(IRocketPlayer player, string command)
+        {
+            // Strip leading slash without allocating when absent
+            if (command.Length > 0 && command[0] == '/')
+                command = command.Substring(1);
+
+            string[] commandParts = ParseCommand(command); // skip expensive Regex entirely.
+
+            name = commandParts[0];
+
+            // Build parameters array without Skip(1) which allocates an iterator.
+            string[] parameters;
+            if (commandParts.Length > 1)
+            {
+                parameters = new string[commandParts.Length - 1];
+                System.Array.Copy(commandParts, 1, parameters, 0, parameters.Length);
+            }
+            else
+            {
+                parameters = System.Array.Empty<string>();
+            }
+
+            if (player == null)
+                player = new ConsolePlayer();
+
+            IRocketCommand rocketCommand = GetCommand(name);
+            if (rocketCommand == null)
+                return false;
+
+            // AllowedCaller checks — unchanged logic, early-exit order preserved.
+            if (rocketCommand.AllowedCaller == AllowedCaller.Player && player is ConsolePlayer)
+            {
+                Logging.Logger.Log("This command can't be called from console");
+                return false;
+            }
+            if (rocketCommand.AllowedCaller == AllowedCaller.Console && !(player is ConsolePlayer))
+            {
+                Logging.Logger.Log("This command can only be called from console");
+                return false;
+            }
+
+            double cooldown = GetCooldown(player, rocketCommand);
+            if (cooldown != -1)
+            {
+                Logging.Logger.Log("This command is still on cooldown");
+                return false;
+            }
+
+            try
+            {
+                bool cancelCommand = false;
+
+                // Snapshot the delegate once — avoids repeated null checks and
+                // repeated GetInvocationList() + Cast<> allocations per handler.
+                ExecuteCommand snapshot = OnExecuteCommand;
+                if (snapshot != null)
+                {
+                    Delegate[] handlers = snapshot.GetInvocationList();
+                    for (int i = 0; i < handlers.Length; i++)
+                    {
+                        try
+                        {
+                            ((ExecuteCommand)handlers[i])(player, rocketCommand, ref cancelCommand);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logging.Logger.LogException(ex);
+                        }
+                    }
+                }
+
+                if (cancelCommand)
+                    return true;
+
+                try
+                {
+                    rocketCommand.Execute(player, parameters);
+
+                    if (!player.HasPermission("*"))
+                        SetCooldown(player, rocketCommand);
+                }
+                catch (NoPermissionsForCommandException ex)
+                {
+                    Logging.Logger.LogWarning(ex.Message);
+                }
+                catch (WrongUsageOfCommandException)
+                {
+                    // intentionally swallowed
+                }
+                // Other exceptions propagate to the outer catch as before.
+            }
+            catch (Exception ex)
+            {
+                Logging.Logger.LogError(
+                    "An error occured while executing " + rocketCommand.Name +
+                    " [" + string.Join(", ", parameters) + "]: " + ex.ToString());
+            }
+
+            return true;
         }
 
         public void RegisterFromAssembly(Assembly assembly)
