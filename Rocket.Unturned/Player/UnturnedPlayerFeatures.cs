@@ -4,6 +4,7 @@ using SDG.Unturned;
 using System;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.PlayerLoop;
 
 namespace Rocket.Unturned.Player
 {
@@ -11,14 +12,14 @@ namespace Rocket.Unturned.Player
     {
         public DateTime Joined = DateTime.Now;
 
-        private Color? color;
+        internal Color? color;
         internal Color? Color
         {
             get => color;
             set => color = value;
         }
 
-        private bool vanishMode;
+        private bool vanishMode = false;
 
         public bool VanishMode
         {
@@ -39,17 +40,18 @@ namespace Rocket.Unturned.Player
                 {
                     pMovement.updates.Add(
                         new PlayerStateUpdate(
-                            pMovement.real,
+                            Player.Position,
                             Player.Player.look.angle,
                             Player.Player.look.rot));
 
-                    pMovement.isUpdated = true;
-                    PlayerManager.updates++;
+                    pMovement.updateMovement();
+                    // pMovement.isUpdated = true;
+                    // PlayerManager.updates++;
                 }
             }
         }
 
-        private bool godMode;
+        private bool godMode = false;
 
         public bool GodMode
         {
@@ -115,7 +117,7 @@ namespace Rocket.Unturned.Player
         // Position tracking (HOT PATH FIX)
         // ─────────────────────────────────────────────────────────────
 
-        private Vector3 oldPosition;
+        Vector3 oldPosition;
         private const float PositionEpsilonSqr = 0.0001f;
 
         private void FixedUpdate()

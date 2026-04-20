@@ -49,7 +49,7 @@ namespace Rocket.Unturned
                 if (_movement == null) return;
             }
 
-            Vector3 pos = _movement.real;
+            Vector3 pos = Player.Position;
 
             // Skip the very first sample (sentinel y == -1).
             if (_lastPos.y != -1f)
