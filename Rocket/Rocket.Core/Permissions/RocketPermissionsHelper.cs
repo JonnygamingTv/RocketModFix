@@ -230,62 +230,15 @@ namespace Rocket.Core.Permissions
 
         public List<Permission> GetPermissions(string playerId)
         {
-            var result = new List<Permission>();
+            var resDict = this.GetPermissionDict(playerId); // does cache check in itself
 
-            List<RocketPermissionsGroup> playerGroups = this.GetGroups(playerId, true);
-            playerGroups.Reverse(); // because we need desc ordering
-
-            playerGroups.ForEach(group =>
-            {
-                group.Permissions.ForEach(permission =>
-                {
-
-                    if (permission.Name.StartsWith("-"))
-                    {
-                        result.RemoveAll(x => string.Equals(x.Name, permission.Name.Substring(1), StringComparison.InvariantCultureIgnoreCase));
-                    } 
-                    else 
-                    {
-                        result.RemoveAll(x => x.Name == permission.Name);
-                        result.Add(permission);
-                    }
-
-                });
-            });
-
-            return result.Distinct().ToList();
+            return new List<Permission>(resDict.Values);
         }
         public HashSet<Permission> GetPermissionHash(string playerId)
         {
-            if (!PlayerGroupCache.TryGetValue(playerId, out var result))
-            {
-                result = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
+            var result = this.GetPermissionDict(playerId);
 
-                List<RocketPermissionsGroup> playerGroups = this.GetGroups(playerId, true);
-                playerGroups.Reverse(); // because we need desc ordering
-
-                playerGroups.ForEach(group =>
-                {
-                    group.Permissions.ForEach(permission =>
-                    {
-
-                        if (permission.Name.StartsWith("-"))
-                        {
-                            string perm_key = permission.Name.Substring(1);
-                            if (result.ContainsKey(perm_key))
-                                result.Remove(perm_key);
-                        }
-                        else
-                        {
-                            result[permission.Name] = permission;
-                        }
-
-                    });
-                });
-                PlayerGroupCache[playerId] = result;
-            }
-
-            HashSet<Permission> perms = new HashSet<Permission>();
+            HashSet<Permission> perms = new HashSet<Permission>(); // (result.Values) seemingly breaks. But, may or may not work
             foreach (string Perm in result.Keys) perms.Add(result[Perm]);
             return perms;
         }

@@ -13,7 +13,7 @@ namespace Rocket.Core.Permissions
     {
         private RocketPermissionsHelper helper;
 
-        private void Awake()
+        private void Awake() // Awake() only runs when RocketPermissionsManager is added as a component. Start() runs every permission check.
         {
             try
             {
@@ -38,7 +38,8 @@ namespace Rocket.Core.Permissions
         private bool updateWebPermissions = false;
         private DateTime lastWebPermissionsUpdate;
 
-        /*private void FixedUpdate()
+        /* Commented to remove overhead since 99% of servers do not utilize this feature. Using coroutine instead: ManualUpdate().
+        private void FixedUpdate()
         {
             try
             {
@@ -73,7 +74,6 @@ namespace Rocket.Core.Permissions
             helper.PlayerGroupCache.Clear();
         }
         
-        //public void ManualLoad() { Awake(); }
         public System.Collections.IEnumerator ManualUpdate() {
             while (R.Settings.Instance.WebPermissions.Enabled)
             {
