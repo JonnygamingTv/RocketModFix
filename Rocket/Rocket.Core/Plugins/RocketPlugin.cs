@@ -60,16 +60,14 @@ namespace Rocket.Core.Plugins
                     }
                     catch (Exception ex)
                     {
-                        Logging.Logger.LogError($"[LoadPlugin] base.LoadPlugin failed for {Name}: {ex}");
-                        base.UnloadPlugin();
-                        throw;
+                        Logging.Logger.LogWarning($"[LoadPlugin] base.LoadPlugin failed for {Name}: {ex}");
                     }
                 });
             }
             catch (Exception ex)
             {
                 Logging.Logger.LogError($"[LoadPlugin] configuration.Load failed for {Name}: {ex}");
-                base.UnloadPlugin();
+                base.UnloadPlugin(PluginState.Failure);
                 throw;
             }
         }
@@ -169,12 +167,12 @@ namespace Rocket.Core.Plugins
                 Logging.Logger.LogWarning($"{Name} is already loaded, skipping LoadPlugin.");
                 return;
             }
+            Translations.Load(); // possible syntax error
+            R.Commands.RegisterFromAssembly(Assembly);
 
             try
             {
-                Translations.Load(); // possible syntax error
                 Load();
-                R.Commands.RegisterFromAssembly(Assembly);
             }
             catch (Exception ex)
             {
