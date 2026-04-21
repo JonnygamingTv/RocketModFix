@@ -167,12 +167,12 @@ namespace Rocket.Core.Plugins
                 Logging.Logger.LogWarning($"{Name} is already loaded, skipping LoadPlugin.");
                 return;
             }
-            Translations.Load(); // possible syntax error
-            R.Commands.RegisterFromAssembly(Assembly);
-
+            
             try
             {
+                Translations.Load(); // possible syntax error
                 Load();
+                R.Commands.RegisterFromAssembly(Assembly);
             }
             catch (Exception ex)
             {
