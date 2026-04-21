@@ -64,6 +64,14 @@ namespace Rocket.Core.Plugins
                     }
                 });
             }
+            catch (InvalidOperationException ex) when (ex.InnerException is System.Xml.XmlException xmlEx)
+            {
+                Logging.Logger.LogError(
+                    $"Invalid XML in {Name} config at line {xmlEx.LineNumber}, pos {xmlEx.LinePosition}: {xmlEx.Message}");
+
+                base.UnloadPlugin(PluginState.Failure);
+                throw;
+            }
             catch (Exception ex)
             {
                 Logging.Logger.LogError($"[LoadPlugin] configuration.Load failed for {Name}: {ex}");

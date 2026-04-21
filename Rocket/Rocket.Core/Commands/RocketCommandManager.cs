@@ -1,17 +1,18 @@
-﻿﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Collections.ObjectModel;
-using UnityEngine;
-using Rocket.API;
-using System.Text.RegularExpressions;
-using System.Reflection;
-using Rocket.Core.Utils;
-using Rocket.Core.Logging;
-using Rocket.Core.Serialization;
-using Rocket.Core.Assets;
-using Rocket.Core.Permissions;
+﻿using Rocket.API;
 using Rocket.API.Serialisation;
+using Rocket.Core.Assets;
+using Rocket.Core.Logging;
+using Rocket.Core.Permissions;
+using Rocket.Core.Serialization;
+using Rocket.Core.Utils;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+using UnityEngine;
 
 namespace Rocket.Core.Commands
 {
@@ -255,6 +256,7 @@ namespace Rocket.Core.Commands
         private static readonly char[] _spaceSeparator = { ' ' };
 
         /// <summary>Regex replacement for significantly better performance</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static string[] ParseCommand(string input)
         {
             int len = input.Length;
