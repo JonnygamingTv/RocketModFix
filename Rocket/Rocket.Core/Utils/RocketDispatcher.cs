@@ -15,13 +15,13 @@ namespace Rocket.Core.Utils
         // ─────────────────────────────────────────────
         // Immediate queue (lock-free)
         // ─────────────────────────────────────────────
-        private static readonly ConcurrentQueue<Action> _queue = new ConcurrentQueue<Action>();
+        private static readonly ConcurrentQueue<Action> actions = new ConcurrentQueue<Action>();
 
         // ─────────────────────────────────────────────
         // Delayed queue (min-heap)
         // NOTE: uses Stopwatch time (thread-safe)
         // ─────────────────────────────────────────────
-        private static readonly List<DelayedQueueItem> _heap = new List<DelayedQueueItem>(64);
+        private static readonly List<DelayedQueueItem> delayed = new List<DelayedQueueItem>(64);
         // private static readonly object _heapLock = new object();
 
         private static readonly System.Diagnostics.Stopwatch _watch = System.Diagnostics.Stopwatch.StartNew();
@@ -46,14 +46,14 @@ namespace Rocket.Core.Utils
 
             if (delay <= 0f)
             {
-                _queue.Enqueue(action);
+                actions.Enqueue(action);
                 return;
             }
 
             // THREAD-SAFE TIME (no Unity API)
             float execTime = (float) _watch.Elapsed.TotalSeconds + delay;
 
-            lock (_heap)
+            lock (delayed)
             {
                 HeapPush(new DelayedQueueItem { time = execTime, action = action });
             }
@@ -125,7 +125,7 @@ namespace Rocket.Core.Utils
             const int maxPerFrame = 1000; // prevents frame stalls
             int count = 0;
 
-            while (count < maxPerFrame && _queue.TryDequeue(out var action))
+            while (count < maxPerFrame && actions.TryDequeue(out var action))
             {
                 try { action(); }
                 catch (Exception ex)
@@ -142,9 +142,9 @@ namespace Rocket.Core.Utils
             {
                 DelayedQueueItem item;
 
-                lock (_heap)
+                lock (delayed)
                 {
-                    if (_heap.Count == 0 || _heap[0].time > now)
+                    if (delayed.Count == 0 || delayed[0].time > now)
                         break;
 
                     item = HeapPop();
@@ -164,30 +164,30 @@ namespace Rocket.Core.Utils
 
         private static void HeapPush(DelayedQueueItem item)
         {
-            int i = _heap.Count;
-            _heap.Add(item);
+            int i = delayed.Count;
+            delayed.Add(item);
 
             while (i > 0)
             {
                 int parent = (i - 1) >> 1;
-                if (_heap[parent].time <= item.time)
+                if (delayed[parent].time <= item.time)
                     break;
 
-                _heap[i] = _heap[parent];
+                delayed[i] = delayed[parent];
                 i = parent;
             }
 
-            _heap[i] = item;
+            delayed[i] = item;
         }
 
         private static DelayedQueueItem HeapPop()
         {
-            int last = _heap.Count - 1;
-            var root = _heap[0];
-            var x = _heap[last];
-            _heap.RemoveAt(last);
+            int last = delayed.Count - 1;
+            var root = delayed[0];
+            var x = delayed[last];
+            delayed.RemoveAt(last);
 
-            if (_heap.Count == 0)
+            if (delayed.Count == 0)
                 return root;
 
             int i = 0;
@@ -195,22 +195,22 @@ namespace Rocket.Core.Utils
             while (true)
             {
                 int left = (i << 1) + 1;
-                if (left >= _heap.Count)
+                if (left >= delayed.Count)
                     break;
 
                 int right = left + 1;
-                int smallest = (right < _heap.Count && _heap[right].time < _heap[left].time)
+                int smallest = (right < delayed.Count && delayed[right].time < delayed[left].time)
                     ? right
                     : left;
 
-                if (_heap[smallest].time >= x.time)
+                if (delayed[smallest].time >= x.time)
                     break;
 
-                _heap[i] = _heap[smallest];
+                delayed[i] = delayed[smallest];
                 i = smallest;
             }
 
-            _heap[i] = x;
+            delayed[i] = x;
             return root;
         }
     }
