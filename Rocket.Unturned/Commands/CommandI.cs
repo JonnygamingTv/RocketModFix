@@ -66,8 +66,12 @@ namespace Rocket.Unturned.Commands
                 sortedAssets.RemoveAll(a => a.itemName == null); // clear all nullNames
                 sortedAssets.Sort((a, b) => a.itemName.Length - b.itemName.Length); // order by length of names
             }
-            Asset a = null;
-            if (!ushort.TryParse(itemString, out id))
+            Asset? a = null;
+            if (ushort.TryParse(itemString, out id))
+            {
+                a = SDG.Unturned.Assets.find(EAssetType.ITEM, id);
+            }
+            else
             {
                 string search = itemString; // no ToLower()
 
@@ -90,10 +94,7 @@ namespace Rocket.Unturned.Commands
                     throw new WrongUsageOfCommandException(caller, this);
                 }
             }
-            else
-            {
-                a = SDG.Unturned.Assets.find(EAssetType.ITEM, id);
-            }
+
             if ((command.Length == 2 && !byte.TryParse(command[1], out amount)) || a == null)
             {
                 UnturnedChat.Say(player, U.Translate("command_generic_invalid_parameter"));
