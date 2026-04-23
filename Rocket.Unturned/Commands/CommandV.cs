@@ -4,6 +4,7 @@ using Rocket.Core.Logging;
 using Rocket.Unturned.Chat;
 using Rocket.Unturned.Player;
 using SDG.Unturned;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -44,6 +45,7 @@ namespace Rocket.Unturned.Commands
             get { return new List<string>() { "rocket.v", "rocket.vehicle" }; }
         }
 
+        private static readonly List<VehicleAsset> assets = new List<VehicleAsset>();
         public void Execute(IRocketPlayer caller, string[] command)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
@@ -52,56 +54,64 @@ namespace Rocket.Unturned.Commands
                 UnturnedChat.Say(caller, U.Translate("command_generic_invalid_parameter"));
                 throw new WrongUsageOfCommandException(caller, this);
             }
-            ushort? id = command.GetUInt16Parameter(0);
-            if (!id.HasValue)
+            Asset? a = null;
+            ushort id;
+            if (ushort.TryParse(command[0], out id))
             {
-                string itemString = command.GetStringParameter(0);
+                a = Assets.find(EAssetType.VEHICLE, id);
+            }
+            else
+            {
+                string itemString = command[0];
 
-                if (itemString == null)
+                if (string.IsNullOrWhiteSpace(itemString))
                 {
                     UnturnedChat.Say(caller, U.Translate("command_generic_invalid_parameter"));
                     throw new WrongUsageOfCommandException(caller, this);
                 }
 
-                List<VehicleAsset> assets = new List<VehicleAsset>();
-                Assets.find(assets);
-                foreach (VehicleAsset ia in assets)
+                if (assets.Count == 0)
                 {
-                    if (ia != null && ia.vehicleName != null && ia.vehicleName.ToLower().Contains(itemString.ToLower()))
+                    Assets.find(assets);
+                    assets.RemoveAll(v => v.vehicleName == null);
+                    assets.Sort((a, b) => a.vehicleName.Length - b.vehicleName.Length);
+                }
+
+                for (int i = 0; i < assets.Count; i++)
+                {
+                    VehicleAsset ia = assets[i];
+                    var name = ia.vehicleName;
+                    if (name.IndexOf(itemString, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
+                        a = ia;
                         id = ia.id;
                         break;
                     }
                 }
-                if (!id.HasValue)
-                {
-                    UnturnedChat.Say(caller, U.Translate("command_generic_invalid_parameter"));
-                    throw new WrongUsageOfCommandException(caller, this);
-                }
             }
 
-            Asset a = Assets.find(EAssetType.VEHICLE, id.Value);
-            if (a is VehicleRedirectorAsset ra)
-            {
-                a = ra.TargetVehicle.Find();
-            }
             if (a == null)
             {
                 UnturnedChat.Say(caller, U.Translate("command_generic_invalid_parameter"));
                 throw new WrongUsageOfCommandException(caller, this);
             }
+
             string assetName = ((VehicleAsset)a).vehicleName;
 
             if (U.Settings.Instance.EnableVehicleBlacklist && !player.HasPermission("vehicleblacklist.bypass"))
             {
-                if(player.HasPermission("vehicle." + id))
+                if (a is VehicleRedirectorAsset ra)
+                {
+                    id = ra.TargetVehicle.Find().id; // legacy IDs
+                }
+                if (player.HasPermission("vehicle." + id))
                 {
                     UnturnedChat.Say(caller, U.Translate("command_v_blacklisted"));
                     return;
                 }
             }
 
-            if (VehicleTool.giveVehicle(player.Player, id.Value))
+            if (VehicleTool.SpawnVehicleForPlayer(player.Player, a))
             {
                 Logger.Log(U.Translate("command_v_giving_console", player.CharacterName, id));
                 UnturnedChat.Say(caller, U.Translate("command_v_giving_private", assetName, id));

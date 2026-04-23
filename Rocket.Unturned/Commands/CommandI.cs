@@ -44,6 +44,7 @@ namespace Rocket.Unturned.Commands
         {
             get { return new List<string>() { "rocket.item" , "rocket.i" }; }
         }
+        private static readonly List<ItemAsset> sortedAssets = new List<ItemAsset>();
 
         public void Execute(IRocketPlayer caller, string[] command)
         {
@@ -57,25 +58,43 @@ namespace Rocket.Unturned.Commands
             ushort id = 0;
             byte amount = 1;
 
-            string itemString = command[0].ToString();
+            string itemString = command[0];
 
+            if(sortedAssets.Count == 0)
+            {
+                Assets.find(sortedAssets); // only populate once
+                sortedAssets.RemoveAll(a => a.itemName == null); // clear all nullNames
+                sortedAssets.Sort((a, b) => a.itemName.Length - b.itemName.Length); // order by length of names
+            }
+            Asset a = null;
             if (!ushort.TryParse(itemString, out id))
             {
-                List<ItemAsset> sortedAssets = new List<ItemAsset>();
-                Assets.find(sortedAssets);
-                //List<ItemAsset> sortedAssets = new List<ItemAsset>(SDG.Unturned.Assets.find(EAssetType.ITEM).Cast<ItemAsset>());
-                ItemAsset asset = sortedAssets.Where(i => i.itemName != null).OrderBy(i => i.itemName.Length).Where(i => i.itemName.ToLower().Contains(itemString.ToLower())).FirstOrDefault();
-                if (asset != null) id = asset.id;
-                if (String.IsNullOrEmpty(itemString.Trim()) || id == 0)
+                string search = itemString; // no ToLower()
+
+                for (int i = 0; i < sortedAssets.Count; i++)
+                {
+                    var asset = sortedAssets[i];
+                    var name = asset.itemName;
+
+                    if (name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        a = asset;
+                        id = asset.id;
+                        break; // first match = shortest name match due to sort
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(itemString) || id == 0)
                 {
                     UnturnedChat.Say(player, U.Translate("command_generic_invalid_parameter"));
                     throw new WrongUsageOfCommandException(caller, this);
                 }
             }
-
-            Asset a = SDG.Unturned.Assets.find(EAssetType.ITEM,id);
-
-            if (command.Length == 2 && !byte.TryParse(command[1].ToString(), out amount) || a == null)
+            else
+            {
+                a = SDG.Unturned.Assets.find(EAssetType.ITEM, id);
+            }
+            if ((command.Length == 2 && !byte.TryParse(command[1], out amount)) || a == null)
             {
                 UnturnedChat.Say(player, U.Translate("command_generic_invalid_parameter"));
                 throw new WrongUsageOfCommandException(caller, this);
