@@ -2,7 +2,8 @@
 
 ## RocketModFix
 
-The **RocketModFix** is a fork of [LDM][ldm_github_repository] for Unturned maintained by the Unturned plugin devs, this fork don't have plans for any major changes to the RocketMod, only fixes and new features that doesn't break any backward compatibility, so you don't need to update your plugins.
+This **RocketModFix** is a fork of RocketModFix, which is a fork of [LDM][ldm_github_repository] (a.k.a. RocketMod) for Unturned maintained by the Unturned plugin devs.
+This fork avoid compatibility-breaking changes as far as possible so you don't need to update your plugins, but it is more aggressively optimized than original RocketModFix, so a very handful of plugins may log more errors or not work as intended on a handful of features (i.e. uEssentials' registry of commands).
 
 ## Compatibility
 
@@ -42,7 +43,7 @@ We're not planning to make any breaking changes with API.
 		- [x] Fix /god. (oxygen isn't fixed)
 		- [ ] Fix /p (not readable at all).
 	- [x] Make permission group operations case-insensitive ([see #107](https://github.com/RocketModFix/RocketModFix/issues/107))
-	- [ ] Performance.
+	- [x] Performance.
 - [x] New Features:
 	- [x] JSON file support (before it was only XML).
 	- [x] Commands:
