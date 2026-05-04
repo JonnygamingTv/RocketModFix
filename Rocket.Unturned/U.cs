@@ -256,7 +256,7 @@ namespace Rocket.Unturned
         {
             CommandWindow.onCommandWindowInputted += (string text, ref bool shouldExecuteCommand) =>
             {
-                if (text.StartsWith("/")) text.Substring(1);
+                // if (text.StartsWith("/")) text.Substring(1);
                 if (R.Commands != null) R.Commands.Execute(new ConsolePlayer(), text);
                 shouldExecuteCommand = false;
             };
