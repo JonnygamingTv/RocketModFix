@@ -32,15 +32,17 @@ namespace Rocket.Unturned.Events
                     OnBeforePlayerConnected.TryInvoke(p);
                 }
             };
-            DamageTool.playerDamaged += (SDG.Unturned.Player player, ref EDeathCause cause, ref ELimb limb, ref CSteamID killer, ref Vector3 direction, ref float damage, ref float times, ref bool canDamage) =>
+            DamageTool.damagePlayerRequested += (ref DamagePlayerParameters parameters, ref bool shouldAllow) =>
             {
                 if (OnPlayerDamaged != null)
                 {
+                    var player = parameters.player;
+                    var killer = parameters.killer;
                     if (player != null && killer != CSteamID.Nil && killer != null)
                     {
                         UnturnedPlayer getterDamage = UnturnedPlayer.FromPlayer(player);
                         UnturnedPlayer senderDamage = UnturnedPlayer.FromCSteamID(killer);
-                        OnPlayerDamaged.TryInvoke(getterDamage, cause, limb, senderDamage, direction, damage, times, canDamage);
+                        OnPlayerDamaged.TryInvoke(getterDamage, parameters.cause, parameters.limb, senderDamage, parameters.direction, parameters.damage, parameters.times, shouldAllow);
                     }
                 }
             };
