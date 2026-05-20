@@ -8,8 +8,7 @@ namespace Rocket.API
     {
         public static bool HasPermission(this IRocketPlayer player, string permission)
         {
-            return R.Permissions.HasPermission(player, permission) || player.IsAdmin;
-            /*
+            // return R.Permissions.HasPermission(player, permission) || player.IsAdmin;
             var provider = R.Permissions;
 
             if (player.IsAdmin)
@@ -22,7 +21,6 @@ namespace Rocket.API
 
             // FALLBACK PATH (legacy compatibility)
             return provider.HasPermission(player, new List<string>(1) { permission });
-            */
         }
 
         public static bool HasPermissions(this IRocketPlayer player, List<string> permissions)

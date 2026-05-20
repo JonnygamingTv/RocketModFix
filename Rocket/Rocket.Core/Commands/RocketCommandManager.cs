@@ -293,69 +293,140 @@ namespace Rocket.Core.Commands
             return result.ToArray();
         }
 
-        public bool Execute(IRocketPlayer player, string command)
+        private static void Reply(IRocketPlayer player, string message, Color color)
         {
-            // Strip leading slash without allocating when absent
-            if (command.Length > 0 && command[0] == '/')
+            if (player is ConsolePlayer)
+            {
+                Logging.Logger.Log(message, ConsoleColor.Gray);
+                return;
+            }
+
+            SDG.Unturned.SteamPlayer steamPlayer = SDG.Unturned.PlayerTool.getSteamPlayer(
+                new Steamworks.CSteamID(ulong.Parse(player.Id)));
+
+            if (steamPlayer != null)
+            {
+                SDG.Unturned.ChatManager.serverSendMessage(
+                    message,
+                    color,
+                    null,
+                    steamPlayer
+                );
+            }
+        }
+        private bool TryResolveCommand(
+            ref IRocketPlayer player,
+            string command,
+            out string[] commandParts,
+            out IRocketCommand rocketCommand)
+        {
+            commandParts = null;
+            rocketCommand = null;
+
+            if (string.IsNullOrEmpty(command))
+                return false;
+
+            // Strip leading slash only when present
+            if (command[0] == '/')
                 command = command.Substring(1);
 
-            string[] commandParts = ParseCommand(command); // skip expensive Regex entirely.
+            commandParts = ParseCommand(command); // skip expensive Regex entirely.
 
-            name = commandParts[0];
-
-            // Build parameters array without Skip(1) which allocates an iterator.
-            string[] parameters;
-            if (commandParts.Length > 1)
-            {
-                parameters = new string[commandParts.Length - 1];
-                System.Array.Copy(commandParts, 1, parameters, 0, parameters.Length);
-            }
-            else
-            {
-                parameters = System.Array.Empty<string>();
-            }
+            string name = commandParts[0];
 
             if (player == null)
                 player = new ConsolePlayer();
 
-            IRocketCommand rocketCommand = GetCommand(name);
-            if (rocketCommand == null)
-                return false;
+            rocketCommand = GetCommand(name);
 
-            // AllowedCaller checks — unchanged logic, early-exit order preserved.
-            if (rocketCommand.AllowedCaller == AllowedCaller.Player && player is ConsolePlayer)
+            if (rocketCommand == null)
+            {
+                Reply(player, R.Translate("command_not_found"), Color.red);
+                return false;
+            }
+
+            // AllowedCaller validation only.
+            // This is fundamental command validity, not permission policy.
+            if (rocketCommand.AllowedCaller == AllowedCaller.Player &&
+                player is ConsolePlayer)
             {
                 Logging.Logger.Log("This command can't be called from console");
                 return false;
             }
-            if (rocketCommand.AllowedCaller == AllowedCaller.Console && !(player is ConsolePlayer))
+
+            if (rocketCommand.AllowedCaller == AllowedCaller.Console &&
+                !(player is ConsolePlayer))
             {
-                Logging.Logger.Log("This command can only be called from console");
+                Reply(player, "This command can only be called from console", Color.red);
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ValidateCommand(
+            IRocketPlayer player,
+            IRocketCommand rocketCommand)
+        {
+            if (!(player is ConsolePlayer) &&
+                !R.Permissions.HasPermission(player, rocketCommand))
+            {
+                Reply(player, R.Translate("command_no_permission"), Color.red);
                 return false;
             }
 
             double cooldown = GetCooldown(player, rocketCommand);
-            if (cooldown != -1)
+
+            if (cooldown > 0)
             {
-                Logging.Logger.Log("This command is still on cooldown");
+                Reply(player,
+                    R.Translate("command_cooldown", cooldown),
+                    Color.red);
+
                 return false;
+            }
+
+            return true;
+        }
+
+        public bool ExecuteResolved(
+            IRocketPlayer player,
+            string[] commandParts,
+            IRocketCommand rocketCommand)
+        {
+            string[] parameters;
+
+            if (commandParts.Length > 1)
+            {
+                int parameterCount = commandParts.Length - 1;
+
+                parameters = new string[parameterCount];
+
+                Array.Copy(commandParts, 1, parameters, 0, parameterCount);
+            }
+            else
+            {
+                parameters = Array.Empty<string>();
             }
 
             try
             {
                 bool cancelCommand = false;
 
-                // Snapshot the delegate once — avoids repeated null checks and
-                // repeated GetInvocationList() + Cast<> allocations per handler.
                 ExecuteCommand snapshot = OnExecuteCommand;
+
                 if (snapshot != null)
                 {
                     Delegate[] handlers = snapshot.GetInvocationList();
+
                     for (int i = 0; i < handlers.Length; i++)
                     {
                         try
                         {
-                            ((ExecuteCommand)handlers[i])(player, rocketCommand, ref cancelCommand);
+                            ((ExecuteCommand)handlers[i])(
+                                player,
+                                rocketCommand,
+                                ref cancelCommand);
                         }
                         catch (Exception ex)
                         {
@@ -371,6 +442,7 @@ namespace Rocket.Core.Commands
                 {
                     rocketCommand.Execute(player, parameters);
 
+                    // Preserve Rocket compatibility behavior
                     if (!player.HasPermission("*"))
                         SetCooldown(player, rocketCommand);
                 }
@@ -382,16 +454,48 @@ namespace Rocket.Core.Commands
                 {
                     // intentionally swallowed
                 }
-                // Other exceptions propagate to the outer catch as before.
             }
             catch (Exception ex)
             {
                 Logging.Logger.LogError(
-                    "An error occured while executing " + rocketCommand.Name +
-                    " [" + string.Join(", ", parameters) + "]: " + ex.ToString());
+                    "An error occured while executing " +
+                    rocketCommand.Name +
+                    " [" + string.Join(", ", parameters) + "]: " +
+                    ex);
             }
 
             return true;
+        }
+
+        public bool ExecuteWithCheck(IRocketPlayer player, string command)
+        {
+            if (!TryResolveCommand(
+                    ref player,
+                    command,
+                    out string[] commandParts,
+                    out IRocketCommand rocketCommand))
+            {
+                return false;
+            }
+
+            if (!ValidateCommand(player, rocketCommand))
+                return false;
+
+            return ExecuteResolved(player, commandParts, rocketCommand);
+        }
+
+        public bool Execute(IRocketPlayer player, string command)
+        {
+            if (!TryResolveCommand(
+                    ref player,
+                    command,
+                    out string[] commandParts,
+                    out IRocketCommand rocketCommand))
+            {
+                return false;
+            }
+
+            return ExecuteResolved(player, commandParts, rocketCommand);
         }
 
         public void RegisterFromAssembly(Assembly assembly)
