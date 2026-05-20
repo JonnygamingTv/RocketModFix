@@ -18,13 +18,18 @@ namespace Rocket.Unturned.Permissions
     {
         public delegate void JoinRequested(CSteamID player, ref ESteamRejection? rejectionReason);
         public static event JoinRequested OnJoinRequested;
-        
+        private static readonly char[] s_slashArray = { '/' };
         [EditorBrowsable(EditorBrowsableState.Never)]
         internal static bool CheckPermissions(SteamPlayer caller, string permission)
         {
             UnturnedPlayer player = caller.ToUnturnedPlayer();
-            Regex r = new Regex("^\\/\\S*");
-            string requestedCommand = r.Match(permission.ToLower()).Value.TrimStart('/');
+            string requestedCommand = permission;
+            if (requestedCommand.Length > 0 && requestedCommand[0] == '/')
+                requestedCommand = requestedCommand.Substring(1);
+            int spaceIndex = requestedCommand.IndexOf(' ');
+            if (spaceIndex >= 0)
+                requestedCommand = requestedCommand.Substring(0, spaceIndex);
+
             IRocketCommand command = R.Commands.GetCommand(requestedCommand); // GetCommand ignoreCase
 
             if (command != null)
@@ -51,11 +56,16 @@ namespace Rocket.Unturned.Permissions
                 return false;
             }
         }
+        
         [EditorBrowsable(EditorBrowsableState.Never)]
         internal static bool CheckPermissions2(UnturnedPlayer player, string permission)
         {
-            Regex r = new Regex("^\\/\\S*");
-            string requestedCommand = r.Match(permission.ToLower()).Value.TrimStart('/');
+            string requestedCommand = permission;
+            if (requestedCommand.Length > 0 && requestedCommand[0] == '/')
+                requestedCommand = requestedCommand.Substring(1);
+            int spaceIndex = requestedCommand.IndexOf(' ');
+            if (spaceIndex >= 0)
+                requestedCommand = requestedCommand.Substring(0, spaceIndex);
             IRocketCommand command = R.Commands.GetCommand(requestedCommand); // GetCommand ignoreCase
 
             if (command != null)

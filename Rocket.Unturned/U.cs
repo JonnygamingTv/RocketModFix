@@ -303,10 +303,8 @@ namespace Rocket.Unturned
                     if (R.Commands != null)
                     {
                         UnturnedPlayer pl = UnturnedPlayer.FromSteamPlayer(player);
-                        if (UnturnedPermissions.CheckPermissions2(pl, text))
-                        {
-                            R.Commands.Execute(pl, text);
-                        }
+                        // if (UnturnedPermissions.CheckPermissions2(pl, text)) // unnecessary
+                        R.Commands.Execute(pl, text);
                     }
                     shouldList = false;
                 }
