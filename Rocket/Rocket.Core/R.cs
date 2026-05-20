@@ -41,6 +41,7 @@ namespace Rocket.Core
                 { "command_rflush_total", "Closing {0} RCON connections." },
                 { "command_rflush_line", "#{0}, ConnectionID: {1}, Address: {2}, closed!" },
                 {"command_no_permission","You do not have permissions to execute this command."},
+                {"command_not_found","Command not found."},
                 {"command_cooldown","You have to wait {0} seconds before you can use this command again."}
         };
          
