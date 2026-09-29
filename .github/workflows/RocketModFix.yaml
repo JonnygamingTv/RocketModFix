@@ -24,11 +24,11 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         name: Setup .NET
         with:
           dotnet-version: 8.x
@@ -41,14 +41,16 @@ jobs:
   Build:
     runs-on: ubuntu-latest
     needs: Compatibility-Check
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         name: Setup .NET
         with:
           dotnet-version: 8.x
@@ -60,7 +62,7 @@ jobs:
           project_path: Rocket.AutoInstaller
           nuget_key: ${{ secrets.NUGET_DEPLOY_KEY }}
           nuget_push: false
-          github_token: ${{ secrets.PAT }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Rocket.Unturned.Module
         uses: ./.github/actions/project-build
@@ -69,17 +71,17 @@ jobs:
           project_path: Rocket.Unturned
           nuget_key: ${{ secrets.NUGET_DEPLOY_KEY }}
           nuget_push: false
-          github_token: ${{ secrets.PAT }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Rocket.AutoInstaller
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Rocket.AutoInstaller
           path: "./Rocket.AutoInstaller/bin/Release/net461/linux-x64/Rocket.AutoInstaller/"
           if-no-files-found: error
           
       - name: Upload Rocket.Unturned.Module
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Rocket.Unturned.Module
           path: "./Rocket.Unturned/bin/Release/net461/linux-x64/Rocket.Unturned/"
@@ -93,14 +95,14 @@ jobs:
 
       - name: Create Release
         if: github.event_name == 'create' && github.event.ref_type == 'tag'
-        uses: ncipollo/release-action@v1.20.0
+        uses: ncipollo/release-action@v1.21.0
         with:
           name: RocketModFix Release v${{ steps.auto-installer-build.outputs.version }}
           tag: ${{ steps.auto-installer-build.outputs.version }}
           artifacts: |
             ./Rocket.AutoInstaller/bin/Release/net461/linux-x64/Rocket.AutoInstaller/Rocket.AutoInstaller.zip
             ./Rocket.Unturned/bin/Release/net461/linux-x64/Rocket.Unturned/Rocket.Unturned.Module.zip
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ steps.auto-installer-build.outputs.is_prerelease }}
           allowUpdates: true
           draft: true

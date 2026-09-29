@@ -16,16 +16,16 @@ jobs:
     
     steps:
       - name: Checkout current fork
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
           
       - name: Checkout original repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: SmartlyDressedGames/Legally-Distinct-Missile
           path: original-repo
           
       - name: Setup dotnet
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.x
           
@@ -91,7 +91,7 @@ jobs:
             --suppression-output-file ./generated-api-suppressions.xml
           
       - name: Upload generated suppression file
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: generated-api-suppressions
           path: ./generated-api-suppressions.xml
